@@ -6,6 +6,7 @@
   var navHit = document.getElementById('navHit');
   var rail = document.getElementById('navRail');
   var navList = document.getElementById('navList');
+  var navPanel = document.querySelector('.nav-panel');
   var dock = document.querySelector('.nav-dock');
   var lead = document.querySelector('.lead');
   var head = document.getElementById('head');
@@ -66,6 +67,9 @@
   // the stylesheet's; the two have to agree, and this is the second of the two
   // places it is written.
   var stacked = window.matchMedia('(max-width: 1099px)');
+  // And below this the rail is not a rail at all, it is a window in the corner.
+  // Third and last place the stylesheet's numbers are written out here.
+  var phone = window.matchMedia('(max-width: 767px)');
 
   function place() {
     if (stacked.matches) {
@@ -343,6 +347,7 @@
   // Offsets are measured once (and on resize) so scrolling is pure arithmetic
   // and never forces a layout.
   var headTops = [], dockTop = 0;
+  var railRow = 8, railPad = 0, railView = 0, railOver = 0, docEnd = 0;
   function measure() {
     headTops = headings.map(function (el) { return el ? el.offsetTop : Infinity; });
     // The first chapter is the page itself now - the wordmark, the line beside
@@ -355,6 +360,32 @@
     // 25,000px out. The header starts on the dock's line - the dock is above it
     // and of no height, so its margin sets them both - and never moves.
     dockTop = head.offsetTop;
+    // The furthest the working line can travel: at the end of the scroll it is
+    // still only halfway down the window, so this is where reading finishes.
+    // Not the document's own height, which is half a screen further on and can
+    // never be reached - the last section measured against that came out longer
+    // than it is, and its tick crawled where every other one moved.
+    docEnd = scroller.scrollHeight - scroller.clientHeight / 2;
+    // The window in the corner is scrolled on every frame of a scroll, so the
+    // numbers that takes are read here instead - once, and never while the page
+    // is moving. Every row is the same height, so where a tick sits in the list
+    // is the row's height times its place in it, plus whatever padding holds
+    // the first one off the top.
+    //
+    // Only while the corner is what the rail actually is, though. Wide, the
+    // rail is a full-height column, and a measurement taken there says the list
+    // is shorter than its own window - which reads as nothing to scroll, and
+    // would leave the window dead when the phone layout came back. Crossing the
+    // breakpoint fires a relayout of its own, so skipping it here costs
+    // nothing.
+    if (!phone.matches || !ticks.length) return;
+    railRow = ticks[0].parentNode.offsetHeight;
+    railPad = ticks[0].parentNode.offsetTop - rail.offsetTop;
+    railView = rail.clientHeight;
+    // Worked out rather than read off scrollHeight, which leaves the bottom
+    // padding out of its answer - and that padding is the whole of what lets
+    // the last few ticks reach the middle instead of stopping short of it.
+    railOver = Math.max(0, railPad * 2 + ticks.length * railRow - railView);
   }
 
   function lastAbove(tops, line) {
@@ -367,35 +398,70 @@
 
   var activeIndex = -1;
   var isOpen = false;      // the one source of truth for the nav's state
+  // An entry the reader picked, held until they scroll for themselves. The
+  // working line sits halfway down the window and a heading you jump to lands
+  // near the top, so the line reads whatever comes after it - pick a chapter
+  // and the mark would go to its first section, which is not what was asked
+  // for. Holding it is what makes the two agree; it lasts exactly as long as
+  // the reader is not the one moving the page.
+  var pinned = -1;
+  // On a phone the rail is a window in the corner, and what shows through it is
+  // where you have got to. It moves with the reading rather than with the
+  // sections: a section is a screen or two of words, and a list that only
+  // stepped when one ended would sit still for most of the time you spent
+  // looking at it. So it is scrolled to wherever you are between one heading
+  // and the next - a tick's own height, spread over a section's length - which
+  // makes it travel at the speed the page does. Arithmetic on numbers measured
+  // earlier, so a scroll never asks the browser for a layout.
+  function trackRail(i, line) {
+    if (railOver <= 0) { rail.scrollTop = 0; return; }
+    var from = headTops[i];
+    var to = i + 1 < headTops.length ? headTops[i + 1] : docEnd;
+    var into = Math.min(1, Math.max(0, (line - from) / Math.max(1, to - from)));
+    var mid = railPad + (i + into + 0.5) * railRow;
+    rail.scrollTop = Math.max(0, Math.min(mid - railView / 2, railOver));
+  }
+
   function update() {
-    // For the first screenful the rail is still travelling up to its pinned
-    // line, and it should stay with the prose while it does. The contents are
-    // not prose though - they are a page of their own, and a page starts at the
-    // top - so the list takes this back off the front and opens up there.
-    // Arithmetic, not a measurement, so scrolling still never forces a layout.
-    var drop = Math.max(0, dockTop - scroller.scrollTop - TOP);
-    dock.style.setProperty('--drop', drop + 'px');
+    // The working line is the middle of the window: whichever section is filling
+    // the top half of the screen is the one you are reading, and the moment a
+    // new one has climbed far enough to hold that half, it takes the mark. So
+    // the last heading to have passed the halfway line is the one marked.
+    var line = scroller.scrollTop + scroller.clientHeight / 2;
 
-    // The working line says which section you are in: the last heading to have
-    // reached it is the one the rail marks. It used to be the middle of the
-    // window - whichever section held the top half of the screen - but picking
-    // an entry lands its heading on the working line, near the top, so by the
-    // time the middle was consulted the section under it had already gone by.
-    // Click a chapter and the mark went to its first section instead. Reading
-    // the same line the page jumps to is what makes the two agree, by
-    // construction: land a heading there and it is the one that is marked.
-    // The pixel is slack - the landing puts the heading exactly on the line,
-    // and a fractional scroll position must not read as not-yet-there.
-    var line = scroller.scrollTop + TOP + 1;
+    // At the foot of the guide the last section is the one you are in, whether
+    // or not its heading ever made it up to the working line. A closing section
+    // shorter than the window cannot get there - there is no scroll left to
+    // carry it - and the mark stopped one entry short whenever that happened.
+    // Reaching the end of the document is the answer in itself.
+    var h = pinned >= 0 ? pinned
+      : scroller.scrollTop >= scroller.scrollHeight - scroller.clientHeight - 1
+        ? headTops.length - 1
+        : Math.max(0, lastAbove(headTops, line));
 
-    var h = Math.max(0, lastAbove(headTops, line));
+    if (phone.matches) {
+      // The same entry the mark is going to, so the hairline in the corner and
+      // the name in the list can never be describing different sections.
+      trackRail(h, line);
+    } else {
+      // For the first screenful the rail is still travelling up to its pinned
+      // line, and it should stay with the prose while it does. The contents are
+      // not prose though - they are a page of their own, and a page starts at
+      // the top - so the list takes this back off the front and opens up there.
+      // Arithmetic, not a measurement, so scrolling never forces a layout.
+      var drop = Math.max(0, dockTop - scroller.scrollTop - TOP);
+      dock.style.setProperty('--drop', drop + 'px');
+    }
+
     if (h === activeIndex) return;
     if (navLinks[activeIndex]) navLinks[activeIndex].classList.remove('is-active');
     if (ticks[activeIndex]) ticks[activeIndex].classList.remove('is-active');
     navLinks[h].classList.add('is-active');
     if (ticks[h]) ticks[h].classList.add('is-active');
     activeIndex = h;
-    centreRail();
+    // The window in the corner is already where it should be - it was moved on
+    // the way here, not on arrival.
+    if (!phone.matches) centreRail();
   }
 
   // Both lanes are taller than the window on a long guide, so each scrolls.
@@ -436,12 +502,20 @@
     .getPropertyValue('--top')) || 48;
 
   scroller.addEventListener('scroll', update, { passive: true });
-  window.addEventListener('resize', function () { measure(); place(); update(); });
-  // Crossing the breakpoint changes what place() should be doing at all, and a
-  // resize event alone does not say which side of it we have landed on.
-  var relayout = function () { measure(); place(); update(); };
-  if (stacked.addEventListener) stacked.addEventListener('change', relayout);
-  else if (stacked.addListener) stacked.addListener(relayout);
+  // Crossing a breakpoint changes what place() should be doing at all, and a
+  // resize event alone does not say which side of one we have landed on.
+  // centreRail at the end because update() leaves the rail alone on a wide
+  // screen - it is moved when the section changes, and coming back from the
+  // phone layout is not a section changing.
+  var relayout = function () {
+    measure(); place(); update();
+    if (!phone.matches) centreRail();
+  };
+  window.addEventListener('resize', relayout);
+  [stacked, phone].forEach(function (mq) {
+    if (mq.addEventListener) mq.addEventListener('change', relayout);
+    else if (mq.addListener) mq.addListener(relayout);
+  });
 
   // Offsets are cached, so anything that reflows the prose has to invalidate
   // them. fonts.ready alone was not enough - it can resolve before the text has
@@ -464,6 +538,18 @@
   function setOpen(open) {
     if (open === isOpen) return;     // ignore repeats, the state only ever flips
     isOpen = open;
+    // The sheet is as wide as its longest entry wants to be, and the box has to
+    // be handed that as a length before it can be asked to grow into it - a
+    // transition needs two of them, and max-content is not one.
+    //
+    // Read here rather than kept with the other measurements, and read before
+    // the class goes on so the target is right from the first frame. The panel
+    // is laid out at its own width the whole time it is closed, whatever the
+    // box around it is doing, so the answer is always there for the asking -
+    // and one that was cached went stale on the turn of a phone.
+    if (open && phone.matches) {
+      reader.style.setProperty('--sheet-w', navPanel.offsetWidth + 'px');
+    }
     reader.classList.toggle('nav-open', open);
     // The labels only fade in at 130ms, so the list is invisible right now.
     // Nothing repositions it on close - there is no need, and every attempt
@@ -483,7 +569,7 @@
     // It may have been a real hover all along - the reader could have moved
     // within the lane rather than into it, and the enter they get credit for
     // has already been and gone. Take the pointer's word for where it is.
-    if (rail.matches(':hover')) setOpen(true);
+    if (!byTap() && rail.matches(':hover')) setOpen(true);
   }, { passive: true });
 
   function forget() { moved = false; }
@@ -496,22 +582,30 @@
   // instead - and a device that reports no hover must not also answer to the
   // mouseenter a tap synthesises, or the contents would open and shut in one go.
   var touch = window.matchMedia('(hover: none)');
+  // The phone layout is opened by tapping whether or not the thing doing the
+  // tapping is a finger. Hover would work there - the panel is a child of the
+  // window in the DOM, so crossing the gap between them never counts as
+  // leaving - but the window fades out as the panel arrives, and a control
+  // that opens on hover and then vanishes from under the pointer leaves
+  // nothing to hover. It is a button in the corner, so it behaves like one.
+  function byTap() { return touch.matches || phone.matches; }
+
   navHit.addEventListener('mouseenter', function () {
-    if (moved && !touch.matches) setOpen(true);
+    if (moved && !byTap()) setOpen(true);
   });
   navHit.addEventListener('mouseleave', function () {
-    if (!touch.matches) setOpen(false);
+    if (!byTap()) setOpen(false);
   });
-  // The rail, or the button that stands in for it on a phone. Picking an entry
+  // The rail, or the window that stands in for it on a phone. Picking an entry
   // has its own handler and closes on its own, so it is left alone here.
   navHit.addEventListener('click', function (e) {
-    if (!touch.matches) return;
+    if (!byTap()) return;
     if (e.target.closest('.nav-item')) return;
     setOpen(!isOpen);
   });
-  // Nothing to leave on a touch screen either, so a tap anywhere else closes it.
+  // Nothing to leave, either, so a tap anywhere else closes it.
   document.addEventListener('click', function (e) {
-    if (touch.matches && isOpen && !navHit.contains(e.target)) setOpen(false);
+    if (byTap() && isOpen && !navHit.contains(e.target)) setOpen(false);
   }, true);
   // Focus opens it too, but only the kind you get from a keyboard. The browser
   // hands focus back to whatever held it last when you return to the tab, and
@@ -575,9 +669,12 @@
     });
   }
 
-  // Any real input wins over an animation in progress.
+  // Any real input wins over an animation in progress - and over a pick made
+  // before it. The moment the reader is the one moving the page, where they are
+  // is the only thing that says which section they are in.
+  function takeOver() { stopGlide(); pinned = -1; }
   ['wheel', 'touchstart', 'keydown'].forEach(function (ev) {
-    scroller.addEventListener(ev, stopGlide, { passive: true });
+    scroller.addEventListener(ev, takeOver, { passive: true });
   });
 
   // A heading lands where the page itself starts: the line the wordmark sits on
@@ -600,6 +697,7 @@
     if (!link) return;
     e.preventDefault();
     setOpen(false);            // picking something is the end of browsing
+    pinned = navLinks.indexOf(link);
     goTo(link.dataset.target, true);
     history.replaceState(null, '', '#' + link.dataset.target);
   });

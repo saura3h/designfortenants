@@ -654,53 +654,170 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ---------- Phones ----------
-   The rail stays. It is the guide's own way of showing you where you are, and
-   a phone wants that more than a wide screen does - what it cannot afford is
-   the 48px lane after it. The gap and the page's margin both come in, which
-   buys back 56px of a 375px line without touching the hairlines themselves. */
-@media (max-width: 767px) {
-  /* Thinner hairlines and less air on either side of them. The rail's whole
-     front - tick plus gap - comes down from 39px to 24px, which is 15px more
-     line on every one of them. */
-  :root { --edge: 28px; --rail: 12px; --rail-gap: 12px; --rail-slop: 12px; }
+   The rail comes off the left. However thin it was cut it still wanted a lane
+   of its own, and a phone has no lane to give: the hairlines ended up in the
+   page's margin, pushed right up against the first letter of every line.
 
-  /* The content takes the whole block, so its margin on the left is the same as
-     its margin on the right. Wide, the rail sits at the front of the text and
-     everything is indented past it; there is no room for that here, and an
-     indent on one side only reads as the page being off centre. */
-  .brand-lane, .copy, .media, .hero { padding-left: 0; }
-  /* So the rail steps out of the block instead, into the margin beside it. Far
-     enough left that its own tap box stops exactly on the text's edge rather
-     than over it. */
-  .nav-hit { left: calc(-1 * (var(--rail) + 12px)); }
-  .nav-tick { width: 6px; }
-  /* Re-stated, or the line above takes the chapters with it - same specificity,
-     and it comes later in the file than the rule that gives them --rail. */
-  .nav-tick--chapter { width: var(--rail); }
-  .reader.nav-open .nav-tick { width: 10px; }
-  .reader.nav-open .nav-tick--chapter { width: calc(var(--rail) + 4px); }
-  /* The slop has to stay inside the gap, or it reaches past the hairlines and
-     over the first few pixels of the text, and a tap meant for a word opens the
-     contents instead. What the target loses on the right it takes back on the
-     left, out of the page's margin, where there is nothing to steal from - and
-     the width has to hold both slops as well as the ticks, since border-box
-     counts padding inside it. */
-  .nav-rail {
-    width: calc(var(--rail) + var(--rail-slop) * 2);
-    padding-left: var(--rail-slop);
-    margin-left: calc(-1 * var(--rail-slop));
+   So it folds into the corner instead. A 44px square at the bottom right, 16px
+   off both edges, where a thumb already is. The hairlines inside it are the
+   wide layout's own - same lengths, same 8px between them - so the window is
+   not a smaller rail, it is the same rail seen through a smaller opening. Five
+   of the fifty-nine at a time, travelling up through it as you read, with the
+   accent one held in the middle.
+
+   Tap it and it does not go anywhere. It grows, up and to the left, into the
+   contents; the guide's entries were sitting in it the whole time, waiting for
+   the box to be big enough to show them. */
+@media (max-width: 767px) {
+  /* --rail is the chapter tick's width, and that is all it is now: nothing is
+     indented past the rail any more, so the gap and the slop have no lane left
+     to hold open. The ticks themselves keep every number the wide layout gives
+     them, which is why neither --rail nor any of the widths are touched here. */
+  :root {
+    --edge: 28px;
+    --rail-gap: 0px;
+    --rail-slop: 0px;
+    /* The corner, and how tall the corner opens to. The width is not written
+       here: the sheet is as wide as its longest entry wants to be, which is a
+       number only the entries know. The script measures it and writes it back
+       as --sheet-w, because a box cannot be grown towards max-content - a
+       transition needs two lengths, and that is not one. The fallback below is
+       what stands in until it has. */
+    --nib:     44px;
+    --sheet-h: min(70vh, calc(100vh - 32px));
   }
+
+  /* The column is the measure itself, rather than the measure plus the lane the
+     rail used to want in front of it. */
+  .brand-lane, .copy, .media, .hero { padding-left: 0; }
+  .head, .nav-dock, .row, .hero {
+    max-width: min(calc(100% - 2 * var(--edge)), var(--text-w));
+  }
+
   .brand { font-size: 26px; letter-spacing: -0.6px; }
   .heading--chapter { font-size: 22px; }
   .nav-item--chapter { font-size: 18px; }
 
-  /* As wide as its entries want to be, and no wider than the screen. Past that
-     the entries wrap rather than the panel running off the edge. */
+  /* ----- the box -----
+     One box for both states. Closed it is the square in the corner; open it is
+     the sheet the contents are read on. It carries the background, the corner
+     and the shadow the whole way through, so what grows is the thing you
+     tapped - there is no second container to fade in behind it, and nothing
+     ever leaves the screen and comes back.
+
+     Pinned by its bottom right corner, so the growth runs up and to the left,
+     away from the thumb rather than under it. */
+  .nav-hit {
+    position: fixed;
+    top: auto;
+    left: auto;
+    right: 16px;
+    bottom: 16px;
+    display: block;
+    width: var(--nib);
+    height: var(--nib);
+    margin: 0;
+    padding: 0;
+    pointer-events: auto;
+    overflow: hidden;              /* the corner has to clip both states */
+    background: var(--bg);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(81, 58, 29, 0.12),
+                0 2px 6px rgba(81, 58, 29, 0.06);
+    transition: width 200ms cubic-bezier(0.44, 0, 0.4, 1),
+                height 200ms cubic-bezier(0.44, 0, 0.4, 1),
+                box-shadow 200ms cubic-bezier(0.44, 0, 0.4, 1);
+  }
+  /* pointer-events stay on: this box is the contents now, and the panel inside
+     it asks for them back on its own account. */
+  .reader.nav-open .nav-hit {
+    width: var(--sheet-w, calc(100vw - 32px));
+    height: var(--sheet-h);
+    box-shadow: 0 12px 32px rgba(81, 58, 29, 0.10),
+                0 2px 8px rgba(81, 58, 29, 0.05);
+  }
+
+  /* ----- the hairlines -----
+     Held in the corner rather than laid out in the box, so growing the box
+     leaves them exactly where they are and they are simply covered over. 18px
+     of padding is half the square less half a row, which is what lets the first
+     and last ticks reach the middle instead of stopping short against an edge.
+     Masked at both ends, so ticks fade at the opening rather than blinking out
+     of it. */
+  .nav-rail {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: var(--nib);
+    height: var(--nib);
+    padding: 18px 0 0;
+    margin: 0;
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0,
+                          #000 8px, #000 36px, transparent 100%);
+    mask-image: linear-gradient(to bottom, transparent 0,
+                  #000 8px, #000 36px, transparent 100%);
+    transition: opacity 160ms cubic-bezier(0.44, 0, 0.4, 1) 90ms;
+  }
+  /* Out at once on the way open, so the box is empty while it grows. Back only
+     after it has shrunk again, which is the delay above. */
+  .reader.nav-open .nav-rail {
+    opacity: 0;
+    transition: opacity 100ms cubic-bezier(0.44, 0, 0.4, 1);
+  }
+  /* The air under the last tick is a box rather than the padding that holds the
+     first one down, because a scroll container's bottom padding is left out of
+     its own scrollHeight - so the list would stop 18px short and the closing
+     sections could never reach the middle. A box is counted. */
+  .nav-rail::after { content: ''; display: block; height: 18px; }
+
+  /* Left aligned as they are on a wide screen - a tick's length is what says
+     whether it is a chapter or a section, and lengths only read against a
+     shared edge. The row is cut to the longest of them and centred as a block,
+     so the group sits in the middle of the square without the hairlines
+     themselves being centred on each other. */
+  .rail-row {
+    width: var(--rail);
+    margin: 0 auto;
+    justify-content: flex-start;
+  }
+  /* The wide layout widens every tick while the nav is open, as a nudge that
+     the rail is live. There is nothing to nudge here - the hairlines are on
+     their way out by then - and a widening on the way out reads as a twitch. */
+  .reader.nav-open .nav-tick { width: 10px; }
+  .reader.nav-open .nav-tick--chapter { width: var(--rail); }
+
+  /* ----- the contents -----
+     Laid out at the open size from the start and clipped by the box, rather
+     than sized with it. So the entries never reflow, never shift under the
+     reader, and the list can be scrolled to where you are the instant it is
+     asked for - at 44px it would have measured itself against the square.
+     Growing the box just uncovers more of something already there.
+
+     No background, no corner and no shadow of its own: it is inside the box,
+     and the box is the one carrying all three. */
   .nav-panel {
-    left: var(--edge);
-    right: auto;
+    position: absolute;
+    top: auto;
+    left: auto;
+    right: 0;
+    bottom: 0;
+    /* As wide as the longest entry, and no wider than the screen. Past that the
+       entries wrap, which is the one thing that should make this box narrower
+       than its own contents want. */
     width: max-content;
-    max-width: calc(100vw - var(--edge) * 2);
+    max-width: calc(100vw - 32px);
+    height: var(--sheet-h);
+    margin: 0;
+    background: none;
+    border-radius: 0;
+    box-shadow: none;
+    transform: none;
+    transition: opacity 140ms cubic-bezier(0.44, 0, 0.4, 1);
+  }
+  /* In only once the box has finished growing: the entries arrive in a sheet
+     that is already the right size, which is the whole point of the delay. */
+  .reader.nav-open .nav-panel {
+    transition: opacity 180ms cubic-bezier(0.44, 0, 0.4, 1) 160ms;
   }
 }
 
