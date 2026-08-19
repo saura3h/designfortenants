@@ -1,0 +1,629 @@
+(function () {
+  'use strict';
+
+  var reader = document.getElementById('reader');
+  var scroller = document.getElementById('readerScroll');
+  var navHit = document.getElementById('navHit');
+  var rail = document.getElementById('navRail');
+  var navList = document.getElementById('navList');
+  var dock = document.querySelector('.nav-dock');
+  var lead = document.querySelector('.lead');
+  var head = document.getElementById('head');
+  var prose = document.getElementById('prose');
+
+  var navLinks = Array.prototype.slice.call(navList.querySelectorAll('.nav-item'));
+  var ticks = Array.prototype.slice.call(rail.querySelectorAll('.nav-tick'));
+  var headings = navLinks.map(function (a) { return document.getElementById(a.dataset.target); });
+  var shots = Array.prototype.slice.call(prose.querySelectorAll('.shot'));
+
+  // ---------- the pictures ----------
+  // A picture is in the flow now, so it arrives with its own words and leaves
+  // with them. All the script has to do is say where it comes to rest: sticky
+  // at the height that leaves equal room above and below, so a section with
+  // more words than picture parks it in the middle of the window and reads
+  // past it. A section shorter than its picture never gets there - the room to
+  // stick in is the row's height less the picture's, which is nothing.
+  //
+  // It also starts where the words start rather than where the heading does. A
+  // heading is a label on the section, not the first thing in it, so a picture
+  // levelled with it sat a line or two high of everything it was next to. The
+  // drop is measured rather than worked out from the type, so a heading that
+  // wraps to two lines, or one whose size changes, still lands it right.
+  //
+  // A picture that belongs to one bullet of a list rather than to the section
+  // says so with data-anchor, and is levelled with that instead. It is not
+  // always the first thing in the row - the first of three lamp kinds still has
+  // the section's opening line above it - so it has to be asked for by name.
+  function firstWordsAt(fig) {
+    var row = fig.closest('.row');
+    var copy = row && row.querySelector('.copy');
+    if (!copy) return 0;
+    var anchor = copy.querySelector('[data-anchor]');
+    if (anchor) return anchor.offsetTop - copy.offsetTop;
+    for (var i = 0; i < copy.children.length; i++) {
+      var el = copy.children[i];
+      if (!el.classList.contains('heading')) return el.offsetTop - copy.offsetTop;
+    }
+    return 0;
+  }
+
+  // The line about the guide is set to the first picture: it starts where that
+  // picture starts and runs as wide as it runs. Neither is a line the
+  // stylesheet can name, because the pictures are centred in their box and
+  // every one is a different width, so where the first one begins and how far
+  // it reaches depend on its proportions and on how tall the window is.
+  // Measured here instead, and measured again whenever either could have moved.
+  function alignLead() {
+    if (!lead || !shots.length) return;
+    var pic = shots[0].getBoundingClientRect();
+    var pad = pic.left - lead.getBoundingClientRect().left;
+    lead.style.setProperty('--lead-pad', Math.max(0, Math.round(pad)) + 'px');
+    lead.style.setProperty('--lead-w', Math.round(pic.width) + 'px');
+  }
+
+  // Below this the pictures are under their words, in the flow, at the column's
+   // own width - so neither of the things place() writes applies. The number is
+  // the stylesheet's; the two have to agree, and this is the second of the two
+  // places it is written.
+  var stacked = window.matchMedia('(max-width: 1099px)');
+
+  function place() {
+    if (stacked.matches) {
+      // Clear rather than skip: the window can be narrowed after a wide layout
+      // has already been measured, and those numbers would otherwise stay on.
+      shots.forEach(function (fig) {
+        fig.parentNode.style.paddingTop = '';
+        fig.style.top = '';
+      });
+      alignLead();
+      return;
+    }
+    var view = scroller.clientHeight;
+    // Read every drop before writing any of them, so sixty rows cost one
+    // reflow between the two passes rather than one apiece.
+    var drops = shots.map(firstWordsAt);
+    shots.forEach(function (fig, i) {
+      fig.parentNode.style.paddingTop = drops[i] + 'px';
+    });
+    shots.forEach(function (fig) {
+      fig.style.top = Math.max(0, Math.round((view - fig.offsetHeight) / 2)) + 'px';
+    });
+    alignLead();
+  }
+
+  // Held at zero opacity until the file is actually in, so a cold 5MB photo
+  // arrives as a fade rather than as a box filling in top to bottom. The whole
+  // figure waits, credit included. The class is added here, not in the markup,
+  // so a page without script still shows every picture.
+  shots.forEach(function (fig) {
+    var img = fig.querySelector('img');
+    if (!img || img.complete) return;
+    fig.classList.add('is-pending');
+    var done = function () { fig.classList.remove('is-pending'); };
+    img.addEventListener('load', done);
+    img.addEventListener('error', done);
+  });
+
+  // ---------- the hero's reveal ----------
+  // A pixel cloud over the hero. It paints the empty room back over the
+  // furnished one wherever it covers, so one number - coverage - does both
+  // halves of the effect: the opening sweep is the cloud leaving to the right,
+  // and the cursor's trail is the cloud being put back under the pointer.
+  //
+  // The cloud itself is value noise with a domain warp, the same billowing fbm
+  // as the sketch this came from, sampled once per cell of a pixel-and-gap
+  // grid and snapped to a few opacity tiers. That snapping is what makes it
+  // read as pixels rather than as a blur.
+  var heroFig = document.querySelector('.hero--reveal');
+  if (heroFig) heroReveal(heroFig);
+
+  function heroReveal(fig) {
+    var full = fig.querySelector('.hero-full');
+    var empty = fig.querySelector('.hero-empty');
+    var canvas = fig.querySelector('.hero-canvas');
+    if (!full || !empty || !canvas) return;
+    var ctx = canvas.getContext('2d');
+
+    // The dials. Grid first, then the cloud, then the cursor.
+    //
+    // There is no gap between the cells. The sketch this came from is a texture
+    // over a background, so its pixels could sit apart and let the page through;
+    // this is a mask over a photograph, and anything it does not cover is the
+    // furnished room showing early. A reveal has to be able to reach opaque, so
+    // the cells are contiguous and the only thing between them is their own
+    // alpha.
+    var CELL = 6;                    // the block, in CSS pixels
+    var NOISE = 0.019;               // cloud size, per screen pixel - lower is bigger
+    var SOFT = 0.30;                 // how gradual the cloud's own edge is
+    var GRAIN = 0.45;                // per-cell noise, which frays every edge
+    var TIERS = 4;                   // opacity steps - the pixelated look
+    var DRIFT = 0.55;                // how fast the cloud boils while it travels
+    var SWEEP_MS = 3400, SWEEP_WAIT = 400;
+    var FRONT = 2.4;                 // how hard the sweep's edge is
+    var CURSOR_R = 192;              // the hole the pointer opens
+    var TRAIL = 20;                  // frames of cursor history kept
+
+    // ---- the same value noise, domain warped so the cloud billows ----
+    function hash(x, y) {
+      var n = (x * 374761393 + y * 668265263) | 0;
+      n = (n ^ (n >> 13)) * 1274126177 | 0;
+      return ((n ^ (n >> 16)) >>> 0) / 4294967295;
+    }
+    function fade(t) { return t * t * (3 - 2 * t); }
+    function noise2(x, y) {
+      var xi = Math.floor(x), yi = Math.floor(y);
+      var xf = x - xi, yf = y - yi;
+      var u = fade(xf), v = fade(yf);
+      var a = hash(xi, yi), b = hash(xi + 1, yi);
+      var c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+      var top = a + (b - a) * u, bot = c + (d - c) * u;
+      return top + (bot - top) * v;
+    }
+    function fbm(x, y, t) {
+      var val = 0, amp = 0.5, fx = x, fy = y;
+      fx += Math.sin(y * 0.4 + t) * 0.6;
+      fy += Math.cos(x * 0.4 - t) * 0.6;
+      for (var o = 0; o < 4; o++) {
+        val += noise2(fx, fy) * amp;
+        fx = fx * 2.02 + t * 0.1;
+        fy = fy * 2.0 - t * 0.08;
+        amp *= 0.5;
+      }
+      return val;
+    }
+    function smoothstep(e0, e1, x) {
+      var t = (x - e0) / (e1 - e0);
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      return t * t * (3 - 2 * t);
+    }
+
+    // ---- the box, and the grid it is drawn through ----
+    // The cloud is painted one canvas pixel per cell, on a canvas the size of
+    // the grid, and then blown up to the picture with smoothing off. So a
+    // 6px block costs one pixel to write rather than a rectangle to fill, and
+    // the whole cloud is one putImageData and one drawImage however fine the
+    // grid gets. Filling 20,000 contiguous rectangles a frame was the other way
+    // to close the gap, and it is the reason the gap was there to begin with.
+    var w = 0, h = 0, dpr = 1, cols = 0, rows = 0;
+    var grid = document.createElement('canvas');
+    var gctx = grid.getContext('2d');
+    var cells = null;
+    function size() {
+      var r = full.getBoundingClientRect();
+      if (!r.width || !r.height) return false;
+      dpr = Math.min(2, window.devicePixelRatio || 1);
+      w = r.width; h = r.height;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.height = h + 'px';
+      cols = Math.ceil(w / CELL);
+      rows = Math.ceil(h / CELL);
+      grid.width = cols; grid.height = rows;
+      cells = gctx.createImageData(cols, rows);
+      return true;
+    }
+
+    // ---- the pointer, and the tail it drags ----
+    var mx = -1e4, my = -1e4, tx = -1e4, ty = -1e4, over = false;
+    var tail = [];
+    fig.addEventListener('pointermove', function (e) {
+      var r = full.getBoundingClientRect();
+      tx = e.clientX - r.left; ty = e.clientY - r.top;
+      if (!over) { mx = tx; my = ty; }        // arrive where the pointer is
+      over = true;
+      wake();
+    });
+    fig.addEventListener('pointerleave', function () { over = false; });
+
+    // ---- the loop ----
+    // It runs while there is something to draw: the sweep, a pointer on the
+    // picture, or a tail still fading. Otherwise it stops - a canvas repainting
+    // eleven thousand cells behind a page nobody is looking at is a battery
+    // bill for nothing.
+    var started = 0, t = 0, last = 0, running = false, seen = true;
+    // `cells` is the guard as well as the buffer: the observer below fires the
+    // moment it starts watching, which is before the pictures have decoded and
+    // so before size() has ever run. Waking on that drew a frame with no grid
+    // to draw into.
+    function wake() {
+      if (running || !seen || !cells) return;
+      running = true;
+      last = performance.now();
+      requestAnimationFrame(frame);
+    }
+
+    function frame(now) {
+      var dt = Math.min(0.05, (now - last) / 1000); last = now;
+      t += dt * DRIFT * 1.3;
+
+      // Where the sweep has got to. It starts left of the picture and ends
+      // right of it, so the cloud clears the last cell before it stops.
+      var age = now - started - SWEEP_WAIT;
+      var p = age <= 0 ? -0.35
+            : age >= SWEEP_MS ? 1.35
+            : -0.35 + 1.7 * smoothstep(0, 1, age / SWEEP_MS);
+      var sweeping = age < SWEEP_MS;
+
+      mx += (tx - mx) * 0.32; my += (ty - my) * 0.32;
+      if (over) tail.push(mx, my);
+      while (tail.length > TRAIL * 2) tail.splice(0, 2);
+      if (!over && tail.length) tail.splice(0, 2);      // let it drain, not vanish
+      var tn = tail.length >> 1;
+
+      var e0 = 0.5 - SOFT, e1 = 0.5 + SOFT;
+      var half = CELL / 2;
+      var data = cells.data;
+
+      for (var j = 0; j < rows; j++) {
+        var py = j * CELL;
+        var ny = py * NOISE + t * 0.12;
+        for (var i = 0; i < cols; i++) {
+          var px = i * CELL;
+          var n = fbm(px * NOISE + t * 0.5, ny, t * 0.4);
+          n = (n - 0.06) * 2.94;                       // stretch to about 0..1
+
+          // The sweep: as the front passes a column, its cells fall away.
+          var v = n - (p - px / w) * FRONT;
+
+          // The cursor puts the cloud back, strongest at the head of the tail.
+          if (tn > 0) {
+            var cx = px + half, cy = py + half, back = 0;
+            for (var k = 0; k < tn; k++) {
+              var old = tn > 1 ? (tn - 1 - k) / (tn - 1) : 0;
+              var rad = CURSOR_R * (1 - 0.45 * old);
+              var dx = cx - tail[k * 2], dy = cy - tail[k * 2 + 1];
+              var d2 = dx * dx + dy * dy;
+              if (d2 < rad * rad) {
+                var c = (1 - Math.sqrt(d2) / rad) * (1 - old * 0.85);
+                if (c > back) { back = c; if (back >= 1) break; }
+              }
+            }
+            if (back > 0) v = Math.max(v, back * 1.35);
+          }
+
+          v += (hash(i + 1234, j + 5678) - 0.5) * GRAIN;   // fray every edge alike
+          var a = smoothstep(e0, e1, v);
+          a = a <= 0.012 ? 0 : Math.ceil(a * TIERS) / TIERS;   // snap - the pixel look
+          data[(j * cols + i) * 4 + 3] = (a * 255) | 0;       // alpha only; the rest is black
+        }
+      }
+
+      // One cell to one pixel, then blown up with smoothing off so the blocks
+      // keep their edges. This is the whole cloud in two calls.
+      gctx.putImageData(cells, 0, 0);
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(grid, 0, 0, cols, rows, 0, 0, canvas.width, canvas.height);
+
+      // Keep the empty room only where the cloud is.
+      ctx.globalCompositeOperation = 'source-in';
+      ctx.drawImage(empty, 0, 0, canvas.width, canvas.height);
+      ctx.globalCompositeOperation = 'source-over';
+
+      if (sweeping || over || tn > 0) requestAnimationFrame(frame);
+      else { running = false; ctx.clearRect(0, 0, w, h); }
+    }
+
+    // ---- start once both files are actually in ----
+    // Reveal a picture that has not arrived and the cloud washes over nothing.
+    // The timeout is the promise it runs anyway: a decode that never settles
+    // must not leave the room empty for good.
+    var armed = false;
+    function begin() {
+      if (armed) return;
+      armed = true;
+      if (!size()) return;
+      started = performance.now();
+      wake();
+    }
+    var ready = [full, empty].map(function (img) {
+      if (img.decode) return img.decode().catch(function () {});
+      if (img.complete) return Promise.resolve();
+      return new Promise(function (done) {
+        img.addEventListener('load', done);
+        img.addEventListener('error', done);
+      });
+    });
+    Promise.all(ready).then(begin);
+    setTimeout(begin, 6000);
+
+    window.addEventListener('resize', function () { if (armed && size()) wake(); });
+
+    // Nothing to draw while it is off the screen.
+    if (window.IntersectionObserver) {
+      new IntersectionObserver(function (es) {
+        seen = es[0].isIntersecting;
+        if (seen) wake();
+      }).observe(fig);
+    }
+  }
+
+  // ---------- scroll tracking ----------
+  // Offsets are measured once (and on resize) so scrolling is pure arithmetic
+  // and never forces a layout.
+  var headTops = [], dockTop = 0;
+  function measure() {
+    headTops = headings.map(function (el) { return el ? el.offsetTop : Infinity; });
+    // The first chapter is the page itself now - the wordmark, the line beside
+    // it and the picture under them - so it is current from the very top rather
+    // than from its own heading, which is a screen or two down.
+    if (headTops.length) headTops[0] = 0;
+    // Where the rail sits in the document before it pins itself. Asking the
+    // dock is no good: once it is pinned, its own offsetTop reports where it
+    // has been moved to, so a re-measure taken halfway down the guide came back
+    // 25,000px out. The header starts on the dock's line - the dock is above it
+    // and of no height, so its margin sets them both - and never moves.
+    dockTop = head.offsetTop;
+  }
+
+  function lastAbove(tops, line) {
+    var found = -1;
+    for (var i = 0; i < tops.length; i++) {
+      if (tops[i] <= line) found = i; else break;
+    }
+    return found;
+  }
+
+  var activeIndex = -1;
+  var isOpen = false;      // the one source of truth for the nav's state
+  function update() {
+    // For the first screenful the rail is still travelling up to its pinned
+    // line, and it should stay with the prose while it does. The contents are
+    // not prose though - they are a page of their own, and a page starts at the
+    // top - so the list takes this back off the front and opens up there.
+    // Arithmetic, not a measurement, so scrolling still never forces a layout.
+    var drop = Math.max(0, dockTop - scroller.scrollTop - TOP);
+    dock.style.setProperty('--drop', drop + 'px');
+
+    // The working line says which section you are in: the last heading to have
+    // reached it is the one the rail marks. It used to be the middle of the
+    // window - whichever section held the top half of the screen - but picking
+    // an entry lands its heading on the working line, near the top, so by the
+    // time the middle was consulted the section under it had already gone by.
+    // Click a chapter and the mark went to its first section instead. Reading
+    // the same line the page jumps to is what makes the two agree, by
+    // construction: land a heading there and it is the one that is marked.
+    // The pixel is slack - the landing puts the heading exactly on the line,
+    // and a fractional scroll position must not read as not-yet-there.
+    var line = scroller.scrollTop + TOP + 1;
+
+    var h = Math.max(0, lastAbove(headTops, line));
+    if (h === activeIndex) return;
+    if (navLinks[activeIndex]) navLinks[activeIndex].classList.remove('is-active');
+    if (ticks[activeIndex]) ticks[activeIndex].classList.remove('is-active');
+    navLinks[h].classList.add('is-active');
+    if (ticks[h]) ticks[h].classList.add('is-active');
+    activeIndex = h;
+    centreRail();
+  }
+
+  // Both lanes are taller than the window on a long guide, so each scrolls.
+  // Bring where you are into view rather than snapping to the top.
+  //
+  // Measured off the two boxes as they actually sit, not off offsetTop: the
+  // entries answer to the nav's own positioned wrapper rather than to the list
+  // they scroll inside, and the list carries a top padding besides. Both would
+  // have to be subtracted back out by hand. This runs when the section changes
+  // or when the nav opens, never on a scroll, so the read costs nothing.
+  function centre(box, el) {
+    if (!el) return;
+    var over = box.scrollHeight - box.clientHeight;
+    if (over <= 0) { box.scrollTop = 0; return; }
+    var into = el.getBoundingClientRect().top - box.getBoundingClientRect().top;
+    var want = box.scrollTop + into - box.clientHeight / 2;
+    box.scrollTop = Math.max(0, Math.min(want, over));
+  }
+
+  // The rail is on screen the whole time and is a position indicator, so it
+  // follows the current section whenever that changes. It only actually
+  // scrolls on windows too short to hold all 59 ticks.
+  function centreRail() {
+    centre(rail, ticks[activeIndex] && ticks[activeIndex].parentNode);
+  }
+
+  // The contents list is different: it is scrolled BY the reader. There is
+  // exactly one moment it may be moved for them - the instant it opens, while
+  // it is still at zero opacity. Every other trigger tried here (on close, on
+  // active change, after a glide) eventually fired while it was visible and
+  // yanked it out from under the pointer.
+  function centreList() {
+    centre(navList, navLinks[activeIndex]);
+  }
+
+  // The one line the page starts on, and the one the rail pins itself to.
+  var TOP = parseFloat(getComputedStyle(document.documentElement)
+    .getPropertyValue('--top')) || 48;
+
+  scroller.addEventListener('scroll', update, { passive: true });
+  window.addEventListener('resize', function () { measure(); place(); update(); });
+  // Crossing the breakpoint changes what place() should be doing at all, and a
+  // resize event alone does not say which side of it we have landed on.
+  var relayout = function () { measure(); place(); update(); };
+  if (stacked.addEventListener) stacked.addEventListener('change', relayout);
+  else if (stacked.addListener) stacked.addListener(relayout);
+
+  // Offsets are cached, so anything that reflows the prose has to invalidate
+  // them. fonts.ready alone was not enough - it can resolve before the text has
+  // been laid out again, leaving every offset short and the current section
+  // reading one heading behind. An observer catches the reflow whenever it
+  // actually happens.
+  if (window.ResizeObserver) {
+    var watch = new ResizeObserver(function () { measure(); place(); update(); });
+    watch.observe(prose);
+    // The first picture too. What the header's second column is lined up with
+    // is that picture's left edge, and its width answers to the window's height
+    // as much as its width - so watching the box itself is surer than waiting
+    // for a resize event and trusting that the layout has caught up by then.
+    if (shots[0]) watch.observe(shots[0]);
+  } else if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () { measure(); place(); update(); });
+  }
+
+  // ---------- nav ----------
+  function setOpen(open) {
+    if (open === isOpen) return;     // ignore repeats, the state only ever flips
+    isOpen = open;
+    reader.classList.toggle('nav-open', open);
+    // The labels only fade in at 130ms, so the list is invisible right now.
+    // Nothing repositions it on close - there is no need, and every attempt
+    // to do so has ended up moving it while someone was looking at it.
+    if (open) centreList();
+  }
+  // A hover has to be one the reader made. Arriving on the page with the pointer
+  // already parked in the rail's lane counted as one, because a browser hands
+  // out mouseenter for whatever is under the cursor as soon as the page paints,
+  // and again when you come back to the tab - so the nav was open before anyone
+  // had touched anything. So: nothing opens on hover until the pointer has
+  // actually moved, and coming back to the tab asks for that again.
+  var moved = false;
+  document.addEventListener('pointermove', function () {
+    if (moved) return;
+    moved = true;
+    // It may have been a real hover all along - the reader could have moved
+    // within the lane rather than into it, and the enter they get credit for
+    // has already been and gone. Take the pointer's word for where it is.
+    if (rail.matches(':hover')) setOpen(true);
+  }, { passive: true });
+
+  function forget() { moved = false; }
+  window.addEventListener('blur', forget);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) forget();
+  });
+
+  // Hover is for pointers. A touch screen has none to open on, so it taps
+  // instead - and a device that reports no hover must not also answer to the
+  // mouseenter a tap synthesises, or the contents would open and shut in one go.
+  var touch = window.matchMedia('(hover: none)');
+  navHit.addEventListener('mouseenter', function () {
+    if (moved && !touch.matches) setOpen(true);
+  });
+  navHit.addEventListener('mouseleave', function () {
+    if (!touch.matches) setOpen(false);
+  });
+  // The rail, or the button that stands in for it on a phone. Picking an entry
+  // has its own handler and closes on its own, so it is left alone here.
+  navHit.addEventListener('click', function (e) {
+    if (!touch.matches) return;
+    if (e.target.closest('.nav-item')) return;
+    setOpen(!isOpen);
+  });
+  // Nothing to leave on a touch screen either, so a tap anywhere else closes it.
+  document.addEventListener('click', function (e) {
+    if (touch.matches && isOpen && !navHit.contains(e.target)) setOpen(false);
+  }, true);
+  // Focus opens it too, but only the kind you get from a keyboard. The browser
+  // hands focus back to whatever held it last when you return to the tab, and
+  // that is not someone asking for the contents.
+  navHit.addEventListener('focusin', function (e) {
+    if (byKeyboard(e.target)) setOpen(true);
+  });
+  function byKeyboard(el) {
+    try { return el.matches(':focus-visible'); } catch (err) { return true; }
+  }
+  // Focus moving from one entry to the next is still browsing, not leaving.
+  // Without this, pressing on a second entry fires focusout then focusin, which
+  // shuts and reopens the nav - and reopening recentres the list, so it slides
+  // out from under the press and the mouseup lands somewhere else. No click
+  // event on the link, no navigation.
+  navHit.addEventListener('focusout', function (e) {
+    if (e.relatedTarget && navHit.contains(e.relatedTarget)) return;
+    setOpen(false);
+  });
+
+  // ---------- animated scrolling ----------
+  // The native smooth scroll picks its own duration from the distance, so end
+  // to end of a 30,000px guide crawled on for several seconds. This one caps
+  // at 1.2s however far it travels, and eases in and out so the middle of the
+  // journey is the fast part.
+  var MAX_MS = 1200, BASE_MS = 260, PER_PX = 0.03;
+  var gliding = false, raf = null;
+  var slowMo = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  function easeInOutCubic(t) {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  }
+
+  function stopGlide() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = null;
+    gliding = false;
+  }
+
+  function glideTo(top) {
+    stopGlide();
+    var from = scroller.scrollTop;
+    var delta = top - from;
+    if (!delta) return;
+    if (slowMo && slowMo.matches) { scroller.scrollTop = top; update(); return; }
+
+    var ms = Math.min(MAX_MS, BASE_MS + Math.abs(delta) * PER_PX);
+    var t0 = null;
+    gliding = true;
+
+    raf = requestAnimationFrame(function step(now) {
+      if (t0 === null) t0 = now;
+      var t = Math.min(1, (now - t0) / ms);
+      scroller.scrollTop = from + delta * easeInOutCubic(t);
+      if (t < 1) {
+        raf = requestAnimationFrame(step);
+      } else {
+        stopGlide();
+        update();              // mark the section we landed in
+      }
+    });
+  }
+
+  // Any real input wins over an animation in progress.
+  ['wheel', 'touchstart', 'keydown'].forEach(function (ev) {
+    scroller.addEventListener(ev, stopGlide, { passive: true });
+  });
+
+  // A heading lands where the page itself starts: the line the wordmark sits on
+  // at the top of the document, which is the line the nav rail pins itself to.
+  function goTo(id, smooth) {
+    // Except the first chapter, which is the page itself. Its entry goes to the
+    // very top, where the wordmark and the rail's own first tick are - and it
+    // has no heading down in the prose to go to instead, so it is asked about
+    // before anything is looked up.
+    var first = navLinks[0] && navLinks[0].dataset.target === id;
+    var target = document.getElementById(id);
+    if (!first && !target) return;
+    var top = first ? 0 : Math.max(0, target.offsetTop - TOP);
+    if (smooth) glideTo(top);
+    else { stopGlide(); scroller.scrollTop = top; }
+  }
+
+  navList.addEventListener('click', function (e) {
+    var link = e.target.closest('.nav-item');
+    if (!link) return;
+    e.preventDefault();
+    setOpen(false);            // picking something is the end of browsing
+    goTo(link.dataset.target, true);
+    history.replaceState(null, '', '#' + link.dataset.target);
+  });
+
+  // The wordmark used to be the way back to the top. It is at the top now, and
+  // gone by the time you would want it, so there is nothing left for it to do.
+
+  // Loading the page is loading the guide, from the top. Not from the anchor
+  // left in the address bar, and not from wherever the browser remembers you
+  // were - both of those get dropped, so every refresh is a hard one.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  clearHash();
+  scroller.scrollTop = 0;
+
+  measure();
+  place();
+  update();
+
+  // Opened as a plain file rather than served, rewriting the address is not
+  // allowed at all, hence the guard.
+  function clearHash() {
+    if (!location.hash) return;
+    try {
+      history.replaceState(null, '', location.href.split('#')[0]);
+    } catch (err) { /* file:// - leave the address as it is */ }
+  }
+})();

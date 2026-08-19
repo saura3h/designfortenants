@@ -1,0 +1,709 @@
+/* ---------- Fonts ---------- */
+@font-face {
+  font-family: 'Haskoy';
+  src: url('fonts/haskoy-variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'InterVar';
+  src: url('fonts/inter-variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+/* ---------- Tokens ---------- */
+:root {
+  --accent-from: #ad5400;   /* brand gradient, bottom */
+  --accent-to:   #724202;   /* brand gradient, top */
+  --accent:      #ac5301;   /* active tick */
+  --ink:         #513a1d;   /* body copy, active nav */
+  --heading:     #a69a8b;   /* headings + credit */
+  --muted:       #8d8d8d;   /* nav labels */
+  --tick:        #e1dbd4;   /* nav ticks */
+  --bg:          #ffffff;
+
+  --col-pad:  48px;         /* the left margin, flat, up to --flat-to */
+  --flat-to: 1500px;        /* where it stops being flat and starts to grow. The
+                               margin used to be worked out by centring a 554px
+                               column in the left half of the window, which set
+                               this crossover at 1300px as a side effect of a
+                               width nothing on the page was actually that wide.
+                               Same line, same slope, anchored on the number
+                               that was being chosen rather than one that
+                               implied it. */
+  --rail:     19px;         /* collapsed nav width */
+  --rail-gap: 48px;         /* rail to prose */
+  --rail-slop: 24px;        /* hover slop right of the hairlines */
+  --text-w:   455px;        /* measure */
+  --nav-row:   3px;         /* half the air between entries - it is padding, not
+                               margin, so every row stays clickable edge to edge */
+  --nav-group: 28px;        /* above a chapter; + a row's padding top and bottom
+                               = a 34px break. Below it is 16px, set on the rule */
+  --edge:     24px;         /* the page's margin once the lanes are gone - see
+                               the stacked layout at the foot of this file */
+  --pane-pad: 84px;         /* the least air a picture gets on either side */
+  --pic-max:  620px;        /* and the widest it ever gets, however wide the
+                               window. Without it the pictures grew with the
+                               window while the 455px measure stayed put, so on
+                               a large display a photo ran to twice the width of
+                               the prose beside it. */
+
+  --head-air: 96px;        /* the sky over the wordmark - carried by the nav
+                               dock's top margin, since the dock is above the
+                               header and of no height, so both start on it */
+  --tail:     96px;         /* under the last line of the guide */
+  --top:      48px;         /* the line the rail pins itself to, where a heading
+                               you jump to lands, and where the contents open */
+  --head-gap: 32px;         /* under a chapter heading, before its words start */
+  --gap-chapter: 128px;     /* above a chapter, and under the header */
+  --gap-section: 128px;     /* above a section */
+
+  /* Three lanes, and every row and the nav rail are cut to them, so nothing has
+     to work its position out twice.
+
+     1. the reading column's left margin: 48px flat up to a 1500px window, and
+        a quarter of every pixel past that. The quarter is what the window's
+        left half growing at half speed comes to, so widening the window still
+        moves the text in by half what it gives the pictures.
+     2. the rail, the gap after it, and the measure - so the lane ends on the
+        last character of the text, not 32px past it
+     3. everything to the right of the text, which is where a picture goes */
+  /* How wide the guide is ever laid out, however wide the window. Past this it
+     stops growing and centres, and the window's extra becomes margin on both
+     sides.
+
+     It has to stop. The text lane is a fixed 522px and a picture is capped at
+     620px, so every pixel a wider window gave went to the air between them:
+     159px of gap on a laptop, 553px at 2560, 883px at 3440. The words and the
+     picture they belong to had drifted into two separate columns with a field
+     between them. Capped here the gap is 155px at any size, which is the
+     laptop's own.
+
+     1500 is also --flat-to, so --lane1 below never reaches its fluid branch any
+     more: the grid it measures is never wider than the breakpoint. That branch
+     is left in rather than folded away - raise this and it comes back. */
+  --page: 1500px;
+
+  /* Lane 1 has a name of its own because two things are cut to it now: the
+     lanes below, and the hero picture, which is not in the grid at all and
+     takes it as a margin on both sides. That is what "the page's own margin"
+     means anywhere else in this file. */
+  --lane1: max(var(--col-pad), calc((100% - var(--flat-to)) / 4 + var(--col-pad)));
+  --lanes:
+    var(--lane1)
+    minmax(0, calc(var(--rail) + var(--rail-gap) + var(--text-w)))
+    1fr;
+
+  --font-display: 'Haskoy', 'InterVar', system-ui, sans-serif;
+  --font-body: 'InterVar', system-ui, -apple-system, sans-serif;
+}
+
+/* ---------- Reset ---------- */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 15px;
+  line-height: 1.7;
+  letter-spacing: -0.14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+a { color: inherit; text-decoration: none; }
+
+/* ---------- The page ---------- */
+/* One scrolling document, the width of the window. The prose keeps the left
+   half and the pictures the right, but they travel together now: each picture
+   is in the flow beside the words it belongs to, so it rises up from the
+   bottom of the window with them. */
+.reader { position: relative; height: 100%; }
+.reader-scroll {
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.reader-scroll::-webkit-scrollbar { display: none; }
+
+/* The guide stays where it is while the contents are open. It used to clear out
+   entirely, the whole scrolling half of it, which meant opening the contents
+   cost you the page you were reading - and the pictures over on the right, which
+   were never in the way of anything. The contents only need the column they land
+   in, so that is all they take: a field of the page's own white under them,
+   dissolving on its right edge into the guide, which carries on. */
+
+/* ---------- The header ---------- */
+/* Cut to the same lanes as everything else, so it sets up the two columns the
+   whole guide is then read in: the wordmark on the far left in the lane the
+   rail is about to take over, and the line about the guide over in the lane the
+   pictures use. Both scroll away with everything else. */
+/* No sky of its own on top any more: the nav dock is above it in the document
+   now and carries that 240px as its own margin, which is what brings the rail
+   down to the wordmark's line. Taking it off here as well would set the
+   wordmark 480px down. Underneath, the picture wants less than a chapter break
+   before it - it belongs to the words above it rather than following them. */
+/* Everything cut to the lanes is cut to the same box, and the hero with them:
+   --page wide at most, centred once the window is wider than that. So a big
+   monitor's extra width becomes margin on both sides instead of air between the
+   words and the picture they belong to. One rule for all four, so the header,
+   the nav and every row cannot come apart from each other at any width. */
+.head, .nav-dock, .row {
+  max-width: var(--page);
+  margin-inline: auto;
+}
+
+.head {
+  display: grid;
+  grid-template-columns: var(--lanes);
+  padding: 0 0 16px;
+}
+
+/* The picture under the wordmark, on the wordmark's own left edge - which means
+   the page's margin plus the rail's share, the same front every line of the
+   guide takes. Anything further left runs under the rail, which is pinned over
+   this lane for the whole height of the page and draws on top of it.
+
+   The right margin is that same measurement rather than the page's, so the two
+   sides match and the picture reads as centred. It is not centred in the window
+   - the left edge is answering to the wordmark, and the right is only agreeing
+   with it. */
+/* 48px under it, not a chapter's worth: the words that follow are the opening
+   chapter's own, and that chapter has no heading here to be spaced off. They
+   belong to the picture above them rather than starting after it. */
+.hero {
+  /* Inset from the page's edge by the wordmark's own front, on both sides, and
+     held to the same --page box as the grid so it centres with everything else.
+     --col-pad rather than --lane1: inside a box that never exceeds --flat-to,
+     lane 1 is always its floor, and the hero's parent is the full-width
+     scroller, where --lane1 would read the window and drift off the grid. */
+  --hero-inset: calc(var(--col-pad) + var(--rail) + var(--rail-gap));
+  width: calc(100% - 2 * var(--hero-inset));
+  max-width: calc(var(--page) - 2 * var(--hero-inset));
+  margin: 0 auto 48px;
+}
+.hero img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* The rail's share taken off the front, exactly as .copy takes it. The wordmark
+   used to sit on the page's own left edge, in the lane the rail was about to
+   take over further down - it could, because the rail did not start until the
+   header had gone. The rail starts level with it now, so the lane is no longer
+   free, and the wordmark moves over to where every line of the guide begins. */
+.brand-lane {
+  /* Across both lanes, because it is one line now and one lane cannot hold it:
+     the measure is 455px and the wordmark is half as wide again. Nothing is
+     beside it any more to want the second lane back. */
+  grid-column: 2 / 4;
+  min-width: 0;
+  padding-left: calc(var(--rail) + var(--rail-gap));
+}
+.brand { display: inline-block; }   /* its type is the display style, further down */
+/* One line where there is room for one, and where there is not, it breaks in the
+   one place that reads: after "Guide". Each half is unbreakable, so the space
+   between them is the only one the line can turn on - real spaces still, not
+   non-breaking ones, so the title copies and is read out as written. */
+.brand > span { white-space: nowrap; }
+
+/* ---------- The nav ---------- */
+/* It starts at the top of the page, level with the wordmark, in the lane the
+   wordmark itself sits in - so the guide opens with its first tick already
+   beside its own title - and pins itself --top from the edge from then on. The
+   dock is how: a sticky box of no height at all, so it holds nothing open in
+   the flow and everything beside it is laid out as though it were not there,
+   while the nav hangs off it.
+   Its margin is the sky over the wordmark. The dock is above the header in the
+   document, and being of no height, that margin is what puts both of them on
+   the same line: the rail starts there, and the header starts after it. */
+.nav-dock {
+  position: sticky;
+  top: var(--top);
+  margin-top: var(--head-air);
+  height: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-columns: var(--lanes);
+  pointer-events: none;
+}
+.nav-anchor { grid-column: 2; position: relative; }
+
+/* Two lanes. The rail of hairlines never moves or resizes - it is a fixed
+   minimap of the whole guide. The readable contents sit in the text column,
+   so on hover they arrive exactly where the prose just left. Because the two
+   are independent, the rail can stay visible the whole time. */
+.nav-hit {
+  pointer-events: none;          /* only the rail opens it, see below */
+  position: absolute;
+  top: 0;
+  left: 0;
+  /* Down to the bottom edge of the window, wherever the rail has got to: --drop
+     is how far below --top it currently sits, and the script keeps it current. */
+  height: calc(100vh - var(--top) - var(--drop, 0px));
+  display: flex;
+  gap: var(--rail-gap);
+  align-items: stretch;
+  /* 12px of hover slop on the top and left, cancelled by the margin so the
+     hairlines do not move. None at the bottom: the rail runs to the window
+     edge, and slop past that pushed the document into a scrollbar. */
+  margin: -12px 0 0 -12px;
+  padding: 12px 0 0 12px;
+}
+/* Open, the whole lane keeps it open, so crossing the gap to the labels never
+   closes it. No timers needed. */
+.reader.nav-open .nav-hit { pointer-events: auto; }
+
+/* The field the contents are read on. It is cut to the same two numbers the
+   list is - the working line and --drop - so it covers exactly what the list
+   covers, from the window's top edge to its bottom, however far down the guide
+   the rail has got. Solid for the width the entries can reach, then dissolved,
+   so there is no edge anywhere: the page does not stop, it just stops being
+   legible under the words on top of it. */
+/* The contents arrive in a container of their own, floating over the guide -
+   opaque, so there is nothing to hide and no fade to hide it with. The page
+   simply carries on underneath and is covered where the container covers it.
+
+   It is held off the window's edges top and bottom by the working line, so it
+   reads as a panel laid on the page rather than a column cut out of it. Its top
+   is the one number it has to work for: the hit box it sits in starts at
+   --top + --drop down the window, and the panel wants to start at --top, so
+   what is left to take off is --drop - which is only ever anything over the
+   first screenful, while the rail is still travelling up to its line. */
+.nav-panel {
+  align-self: flex-start;
+  margin-top: calc(-1 * var(--drop, 0px));
+  height: calc(100vh - var(--top) * 2);
+  width: max-content;            /* only as wide as the longest entry */
+  max-width: var(--text-w);
+  flex: none;
+  /* 16px back into the gap the rail leaves, so the container's edge sits closer
+     to the hairlines it belongs to than the text lane's own front does. */
+  margin-left: -16px;
+  background: var(--bg);
+  border-radius: 8px;
+  /* Shadow only, no hairline. The edge is the shadow's to describe. */
+  box-shadow: 0 12px 32px rgba(81, 58, 29, 0.10),
+              0 2px 8px rgba(81, 58, 29, 0.05);
+  overflow: hidden;              /* the radius has to clip the entries scrolling past */
+  /* In from the left as it fades up, and back out the same way - it arrives
+     from the rail it belongs to rather than across the page. The delay it used
+     to open on was there to let the prose clear out first, so the two never
+     overlapped as text; the panel is opaque now and covers whatever it lands
+     on, so there is nothing to wait for. */
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-16px);
+  transition: opacity 200ms cubic-bezier(0.44, 0, 0.4, 1),
+              transform 200ms cubic-bezier(0.44, 0, 0.4, 1);
+}
+.reader.nav-open .nav-panel {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+}
+
+.nav-list { position: relative; z-index: 1; }
+
+.nav-rail {
+  pointer-events: auto;          /* the opener */
+  /* 24px of hover slop past the right end of the hairlines, cancelled by an
+     equal negative margin so the ticks and the prose beside them do not move.
+     It has to live here, not on the wrapper: the wrapper takes no pointer
+     events until the nav is already open. */
+  width: calc(var(--rail) + var(--rail-slop));
+  padding-right: var(--rail-slop);
+  margin-right: calc(-1 * var(--rail-slop));
+  flex: none;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  margin-top: 4px;               /* first tick lands 8px under the first line */
+}
+.nav-rail::-webkit-scrollbar { display: none; }
+
+.rail-row { display: flex; align-items: center; height: 8px; }
+.nav-tick {
+  width: 10px;
+  height: 1px;
+  background: var(--tick);
+  border-radius: 1px;
+  /* Hold the set width - the row is a flexbox exactly as wide as a chapter
+     tick, so the default shrink would pull a widened tick straight back. */
+  flex: none;
+  transition: background-color 75ms ease, height 75ms ease, width 150ms ease;
+}
+.nav-tick--chapter { width: var(--rail); }
+.nav-tick.is-active { background: var(--accent); height: 2px; }
+/* Open, the hairlines stretch 4px wider - a small nudge that the rail is live. */
+.reader.nav-open .nav-tick { width: 14px; }
+.reader.nav-open .nav-tick--chapter { width: calc(var(--rail) + 4px); }
+
+/* The contents, in the text column, in the text's own style.
+
+   The box runs the full height of the window, top edge to bottom edge, and
+   holds the page's --top as padding instead. So it reads as a page of its own:
+   the first entry sits on the same line the guide starts on, and once it is
+   scrolled the entries pass off the top of the screen the way anything else
+   does. An edge partway down the window would slice an entry in half, which is
+   what the soft dissolve used to be there to cover up.
+
+   Two things move it: --top, always, and --drop, which is how far below its
+   pinned line the rail currently sits. Both come back off the front and go on
+   to the height, so the box lands on the window's own edges either way. */
+/* Inside the panel, and only as tall as it. The padding is here rather than on
+   the panel so the entries scroll the whole height of it and are cut by its own
+   rounded edge, instead of stopping short at an inner margin. */
+.nav-list {
+  height: 100%;
+  overflow: hidden auto;
+  /* Reaching the end of the list must not start scrolling the page behind it. */
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  /* 32px on the right rather than 24: the entries are ragged, so the eye reads
+     the gap from the longest one and the panel looks tighter on that side than
+     it measures. The extra 8px is what makes the four sides look equal. */
+  padding: 24px 32px 24px 24px;
+}
+.nav-list::-webkit-scrollbar { display: none; }
+
+.nav-item {
+  display: block;
+  font-size: 15px;               /* the body's own style */
+  line-height: 1.7;
+  letter-spacing: -0.14px;
+  color: var(--heading);         /* the same grey the section headings use */
+  /* Padding, not margin: a gap made of margin is dead space, and clicks that
+     landed in it did nothing at all. */
+  padding: var(--nav-row) 0;
+  transition: color 75ms ease;
+}
+/* The break above a chapter is twice what it was, and there is one below it now
+   too - at 28px it is a piece of display type, and sections crowded it from
+   underneath. The two are not the same size though. The space above separates it
+   from the chapter that ended; the space below only has to hold it off its own
+   sections, which belong to it, so it is 8px. Matching the two read as a gap
+   rather than as a heading. */
+.nav-item--chapter {
+  font-size: 20px;
+  letter-spacing: -0.6px;
+  margin: var(--nav-group) 0 8px;
+}
+.nav-item--chapter:first-child { margin-top: 0; }
+.nav-item--section { margin-left: 24px; }
+/* The current entry. The thickness is named rather than left to `auto`: at 15px
+   auto works out under a pixel, which anti-aliases to a grey smudge and reads as
+   no underline at all - it only looked drawn at display sizes. A whole pixel is
+   a line. */
+.nav-item.is-active {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+.nav-item:hover { color: var(--ink); }
+/* A chapter's letters are the gradient showing through, so its own colour is
+   transparent and there is nothing for an underline to be drawn in. The active
+   and hover states name a colour for it instead, and leave the letters alone.
+
+   And a thickness of its own. The 1px above is measured for the 15px entries;
+   on display type the same line reads as a hairline. 2px is what matches the
+   stems at 20px and 600 weight, the way 1px matches them at 15px and 400. */
+.nav-item--chapter.is-active,
+.nav-item--chapter:hover { color: transparent; text-decoration-color: var(--accent); }
+.nav-item--chapter.is-active { text-decoration-thickness: 2px; }
+
+/* ---------- Prose ---------- */
+/* Nothing dissolves at the top any more. The wordmark travels with the text,
+   so there is nothing for the text to pass underneath and nothing to hide. */
+/* The header holds the space above it. Below, the last line gets a close of its
+   own - it used to be 60vh, which on a tall window was half a screen of nothing
+   to scroll through before the guide would stop. */
+.prose { padding: 0 0 var(--tail); }
+
+/* ---------- Rows ---------- */
+/* Every stretch of prose is a row: the words in the left half, their picture
+   in the right. Both halves are grid tracks of the same row, so the row is as
+   tall as whichever of the two is longer. That is the whole trick - a section
+   with more words than picture runs on past it, and a section with more
+   picture than words holds the next section off until the picture is done. */
+.row {
+  display: grid;
+  grid-template-columns: var(--lanes);
+  align-items: stretch;          /* the media track gets the row's full height,
+                                    which is the room the picture sticks in */
+}
+/* The space between rows is the space between sections, so it belongs to the
+   row and not to the heading inside it - a heading's own margin would sit
+   inside the grid item and leave the picture starting above its own title. */
+/* All of them together and in this order: they are the same specificity, so the
+   last one that matches is the one that counts. The wordmark's rule lived up in
+   the header block and quietly lost to the 16px here. */
+.row + .row { margin-top: 16px; }
+.row + .row--chapter { margin-top: var(--gap-chapter); }
+.row + .row--section { margin-top: var(--gap-section); }
+/* One bullet of a list and its picture. The items are their own stretch of the
+   guide by now, so they get the air a section gets rather than a paragraph's. */
+.row + .row--item { margin-top: var(--gap-section); }
+.row + .row--end { margin-top: 88px; }
+
+/* The text lane, with the rail's share taken off the front. */
+.copy {
+  grid-column: 2;
+  padding-left: calc(var(--rail) + var(--rail-gap));
+  min-width: 0;
+}
+.copy > * { margin: 0 0 16px; max-width: var(--text-w); }
+.copy > *:last-child { margin-bottom: 0; }
+
+/* A section heading is the body's own type, just greyer, and it carries only
+   its own name - the chapter it belongs to is already the last big thing you
+   passed, and the rail is holding your place besides. */
+.heading {
+  font: inherit;
+  font-weight: 400;
+  color: var(--heading);
+  /* Where a heading you jumped to comes to rest: the working line, the same one
+     the rail pins to and the contents open on. It used to read --col-pad, which
+     is the reading column's margin from the left edge and has no business
+     setting a vertical offset - they only ever agreed by accident. */
+  scroll-margin-top: var(--top);
+}
+
+/* The display style. Two things wear it: the wordmark that opens the guide, and
+   the heading that opens a chapter. Same face, same weight, same gradient - the
+   size is what tells them apart, and the size is all that does. */
+/* Three things wear it now: the wordmark that opens the guide, the heading that
+   opens a chapter, and that same chapter's entry in the contents - so the list
+   is set the way the guide it stands for is set. */
+.brand, .heading--chapter, .nav-item--chapter {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.1;
+  background-image: linear-gradient(0deg, var(--accent-from) 0%, var(--accent-to) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.brand { font-size: 48px; letter-spacing: -1.5px; }
+.heading--chapter {
+  font-size: 28px;
+  letter-spacing: -0.6px;
+  margin-bottom: var(--head-gap);   /* the air the descriptor gets under the wordmark */
+}
+
+.copy ul, .copy ol { padding-left: 21px; }
+.copy li { margin-bottom: 0; max-width: none; }
+/* A list cut into a row per picture stops reading as a list - its items are a
+   picture's height apart, and a marker that far from its neighbours is just a
+   stray dot. So the markers go and the items sit on the text's own left edge.
+   What holds the three together now is that they are plainly parallel. */
+.copy ul[data-anchor], .copy ol[data-anchor] { list-style: none; padding-left: 0; }
+.copy strong { font-weight: 600; }
+
+.colophon { color: var(--heading); }
+.colophon a { text-decoration: underline; text-underline-offset: 2px; }
+
+/* ---------- The pictures ---------- */
+/* The lane runs from the last character of the text to the right edge of the
+   window, and the picture is centred in it, so the air to its left and the air
+   to its right are the same. The split pane measured its half of the window
+   instead, which put the picture's own centre well right of the gap's. */
+.media {
+  grid-column: 3;
+  padding: 0 var(--pane-pad);
+  min-width: 0;
+}
+/* Every picture is the same width. Three caps, whichever bites first: 620px,
+   the lane, and half the window less the air on either side. All three are
+   measurements of the window rather than of the photo, so they come out the
+   same for every figure on the page.
+
+   620px is the one that governs from about 1576px of window up, and it is the
+   reason a picture and the prose beside it stay in proportion on a large
+   display. Below that the half-window cap is the smaller and the pictures ride
+   the window down.
+
+   Height is nobody's business but the photo's. It used to be capped to what the
+   window left, which sized a portrait down and a landscape up and meant no two
+   pictures agreed on a width. Now the width is fixed and the height simply
+   follows from the file's own proportions, so a tall photo is tall. */
+.shot {
+  position: sticky;
+  top: 0;                        /* the script centres it in the window */
+  margin: 0 auto;
+  width: min(var(--pic-max), 100%, calc(50vw - var(--pane-pad) * 2));
+}
+.shot img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* Picture and credit together, so a jump into a section never leaves a credit
+   floating over the empty space its photo has not arrived in yet. Nothing fades
+   unless the script is there to take the class off again. */
+.shot { transition: opacity 200ms ease; }
+.shot.is-pending { opacity: 0; }
+
+.credit {
+  margin: 8px 0 0;
+  text-align: right;
+  font-size: 12px;
+  letter-spacing: -0.12px;
+  color: var(--heading);
+}
+.credit a, .credit .credit-name {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: color 0.15s ease;
+}
+.credit a:hover { color: var(--ink); }
+
+
+/* ---------- The hero's reveal ----------
+   The guide opens on the room empty and lets it furnish itself, and afterwards
+   a cursor drawn across it brings the empty room back under the pointer.
+
+   The furnished photograph is the one in the flow: it holds the box and it is
+   what shows if the script never runs. The empty one is loaded and never
+   displayed - it is a source for the canvas over the top, which paints it back
+   in wherever a pixel cloud covers. So there is one thing being animated, the
+   cloud's coverage, and both halves of the effect are the same thing: the sweep
+   is the cloud leaving, the trail is the cursor putting it back.
+
+   Everything about how it looks is in the script, which is where the cloud is
+   computed. This only stacks the layers. */
+.hero--reveal { position: relative; }
+/* Loaded, decoded, never painted. display:none still fetches it. */
+.hero--reveal .hero-empty { display: none; }
+.hero-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  /* The picture's own height, not the figure's - the figure is the picture plus
+     its credit line, and a hundred per cent of that overshoots by 28px. The
+     script sets this from the photograph as it measures it. */
+  height: auto;
+  pointer-events: none;   /* the pointer is read from the figure, not caught here */
+}
+
+/* ---------- Narrow ----------
+   Two lanes of prose and pictures need about 1100px before the pictures start
+   being squeezed into nothing: lane 2 alone is a fixed 522px, and what is left
+   has to hold a photograph with air on both sides. Below that the two stack -
+   each picture under the words it belongs to, which is where it belonged all
+   along; the lanes were only ever a way of showing them at the same time.
+
+   1099px is written into the script as well, in the media query `place` asks
+   before it positions anything. The two have to agree: below it nothing is
+   sticky and nothing is dropped down its row, so the numbers `place` writes
+   would both be wrong. */
+@media (max-width: 1099px) {
+  /* Lane 2 lifted out of the grid and put in the middle of the window: the
+     rail, the gap after it, and the measure. Everything is cut to it, so the
+     guide sits centred as one column rather than hugging the left edge with
+     the window's growth piling up on the right. The --edge floor is what it
+     falls back to on a screen narrower than the column itself. */
+  .head, .nav-dock, .row, .hero {
+    display: block;
+    width: auto;
+    max-width: min(calc(100% - 2 * var(--edge)),
+                   calc(var(--rail) + var(--rail-gap) + var(--text-w)));
+    margin-left: auto;
+    margin-right: auto;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  /* The rail keeps its lane at the front, and the wordmark, the prose, the
+     pictures and the hero all clear it - so they share one left edge and one
+     right edge, and the rail is the only thing outside them. */
+  .brand-lane, .copy, .media, .hero { padding-left: calc(var(--rail) + var(--rail-gap)); }
+
+  /* Under the words rather than beside them, and in the flow, so nothing
+     sticks and nothing waits for it. */
+  /* padding-right explicitly, or the wide layout's --pane-pad survives on that
+     side alone and the pictures come up 84px short of the text's right edge. */
+  .media { margin: 32px 0 0; max-width: none; padding-right: 0; }
+  .shot { position: static; width: 100%; }
+
+  /* A row is as tall as its own contents now, so the breaks between them are
+     all that separate one section from the next. */
+  .row + .row { margin-top: 32px; }
+  .row + .row--chapter,
+  .row + .row--section,
+  .row + .row--item { margin-top: 64px; }
+
+  .hero { margin-bottom: 32px; }
+  .head { padding-bottom: 16px; }
+  .brand { font-size: 30px; letter-spacing: -0.8px; }
+  .heading--chapter { font-size: 24px; }
+
+  /* Pinned to the window rather than hung off the dock, so none of the --drop
+     arithmetic the wide layout needs has to hold here. */
+  .nav-panel {
+    position: fixed;
+    top: var(--top);
+    margin: 0;
+    height: calc(100vh - var(--top) * 2);
+    max-width: min(var(--text-w), calc(100vw - var(--edge) * 2));
+  }
+}
+
+/* ---------- Phones ----------
+   The rail stays. It is the guide's own way of showing you where you are, and
+   a phone wants that more than a wide screen does - what it cannot afford is
+   the 48px lane after it. The gap and the page's margin both come in, which
+   buys back 56px of a 375px line without touching the hairlines themselves. */
+@media (max-width: 767px) {
+  /* Thinner hairlines and less air on either side of them. The rail's whole
+     front - tick plus gap - comes down from 39px to 24px, which is 15px more
+     line on every one of them. */
+  :root { --edge: 28px; --rail: 12px; --rail-gap: 12px; --rail-slop: 12px; }
+
+  /* The content takes the whole block, so its margin on the left is the same as
+     its margin on the right. Wide, the rail sits at the front of the text and
+     everything is indented past it; there is no room for that here, and an
+     indent on one side only reads as the page being off centre. */
+  .brand-lane, .copy, .media, .hero { padding-left: 0; }
+  /* So the rail steps out of the block instead, into the margin beside it. Far
+     enough left that its own tap box stops exactly on the text's edge rather
+     than over it. */
+  .nav-hit { left: calc(-1 * (var(--rail) + 12px)); }
+  .nav-tick { width: 6px; }
+  /* Re-stated, or the line above takes the chapters with it - same specificity,
+     and it comes later in the file than the rule that gives them --rail. */
+  .nav-tick--chapter { width: var(--rail); }
+  .reader.nav-open .nav-tick { width: 10px; }
+  .reader.nav-open .nav-tick--chapter { width: calc(var(--rail) + 4px); }
+  /* The slop has to stay inside the gap, or it reaches past the hairlines and
+     over the first few pixels of the text, and a tap meant for a word opens the
+     contents instead. What the target loses on the right it takes back on the
+     left, out of the page's margin, where there is nothing to steal from - and
+     the width has to hold both slops as well as the ticks, since border-box
+     counts padding inside it. */
+  .nav-rail {
+    width: calc(var(--rail) + var(--rail-slop) * 2);
+    padding-left: var(--rail-slop);
+    margin-left: calc(-1 * var(--rail-slop));
+  }
+  .brand { font-size: 26px; letter-spacing: -0.6px; }
+  .heading--chapter { font-size: 22px; }
+  .nav-item--chapter { font-size: 18px; }
+
+  /* As wide as its entries want to be, and no wider than the screen. Past that
+     the entries wrap rather than the panel running off the edge. */
+  .nav-panel {
+    left: var(--edge);
+    right: auto;
+    width: max-content;
+    max-width: calc(100vw - var(--edge) * 2);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition-duration: 0.01ms !important; }
+}
