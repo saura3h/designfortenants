@@ -17,6 +17,13 @@
   --accent-from: #ad5400;   /* brand gradient, bottom */
   --accent-to:   #724202;   /* brand gradient, top */
   --accent:      #ac5301;   /* active tick */
+  /* The display type is drawn by clipping this to the letters, so it is named
+     once here and asked for by everything that wears it. */
+  --display-ramp: linear-gradient(0deg, var(--accent-from) 0%, var(--accent-to) 100%);
+  /* Expo-out. What the corner window and the wordmark move on: nearly all of
+     the travel is spent in the first third, so it reads as arriving rather
+     than as being driven the whole way. */
+  --ease-expo: cubic-bezier(0.19, 1, 0.22, 1);
   --ink:         #513a1d;   /* body copy, active nav */
   --heading:     #a69a8b;   /* headings + credit */
   --muted:       #8d8d8d;   /* nav labels */
@@ -183,6 +190,12 @@ a { color: inherit; text-decoration: none; }
   width: calc(100% - 2 * var(--hero-inset));
   max-width: calc(var(--page) - 2 * var(--hero-inset));
   margin: 0 auto 48px;
+  /* Over the header rather than under it. Nothing overlaps once the page has
+     settled, so this only shows during the opening - it is what lets the
+     wordmark start out behind the picture and rise from under its top edge.
+     The rail is z-index 2 and stays above both. */
+  position: relative;
+  z-index: 1;
 }
 .hero img {
   display: block;
@@ -207,7 +220,37 @@ a { color: inherit; text-decoration: none; }
    one place that reads: after "Guide". Each half is unbreakable, so the space
    between them is the only one the line can turn on - real spaces still, not
    non-breaking ones, so the title copies and is read out as written. */
-.brand > span { white-space: nowrap; }
+/* Each half is its own box: unbreakable, so the space between them is the only
+   place the line can turn. That has a cost, twice over.
+
+   First: the wordmark's gradient is painted on .brand and clipped to its
+   letters, and an inline-block child is painted independently, where the
+   parent's clip does not reach it. Left alone it renders as transparent text
+   over nothing, which is to say it disappears. So each half carries the same
+   gradient itself, cut to the same box: --brand-sheet is the whole wordmark's
+   height and --brand-drop is how far down it that half sits. The ramp then runs
+   on across the line break exactly as it did when one element painted both.
+
+   Second: an inline-block sits on a line differently from an inline box, and
+   giving it to one half and not the other put the two lines two pixels out and
+   let them touch. So both are inline-block and both paint themselves. What
+   matters is that they are treated the same, not which of the two ways it is.
+
+   Neither wraps internally, so the space between them is still the only place
+   the line can turn. The fallbacks are what a single line needs anyway - one
+   line, no drop - so even before the script has measured, the common case is
+   already right. */
+/* The wordmark itself paints nothing - see the display rule further down, where
+   that has to be said, since this is the half of the pair that loses. */
+.brand > span {
+  white-space: nowrap;
+  display: inline-block;
+  background-image: var(--display-ramp);
+  background-size: 100% var(--brand-sheet, 100%);
+  background-position: 0 calc(-1 * var(--brand-drop, 0px));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
 
 /* ---------- The nav ---------- */
 /* It starts at the top of the page, level with the wordmark, in the lane the
@@ -415,6 +458,93 @@ a { color: inherit; text-decoration: none; }
 .nav-item--chapter:hover { color: transparent; text-decoration-color: var(--accent); }
 .nav-item--chapter.is-active { text-decoration-thickness: 2px; }
 
+/* ---------- The nav, wide ----------
+   The contents open over the rail rather than beside it, and they open out of
+   it: the panel starts as the rail's own box - same left edge, same top, same
+   bottom - and the only thing that travels is its width. So what widens is the
+   column you have been reading, not a second surface arriving on top of it.
+
+   Nothing is scaled. A scale would shrink the panel about its own middle,
+   which is nowhere near the rail, and getting it to the rail's proportions
+   would mean scaling the two axes by different amounts - which crushes every
+   letter inside it. Width is the honest property here.
+
+   Its own block, and a min-width one, because the stacked layout below pins
+   this panel to the window instead and none of the below would survive contact
+   with that. It has to come after the rules it overrides, too: a media query
+   adds no specificity, so between two rules this alike the later one is simply
+   the one that counts.
+
+   There is no press state, because there is nothing to press: the rail opens
+   on hover, and a hairline is not a button. */
+@media (min-width: 1100px) {
+  /* Cut to the rail. The 12px and the 16px are the hit box's hover slop, which
+     it carries as padding, and the rail's own 4px on top of it - an absolute
+     offset is measured from the border edge, outside both, so they have to be
+     added back by hand. `bottom: 0` is the rail's bottom, which is the hit
+     box's own: it has no padding on that side.
+
+     No --drop compensation either, unlike the panel this replaces. That was
+     there to hold it on the working line while the rail was still travelling up
+     to it. It is the rail now, so it travels with it. */
+  .nav-panel {
+    position: absolute;
+    left: 12px;
+    /* Cut to the hairlines, not to the element holding them. The rail's own box
+       runs the height of the window and is mostly empty below the last tick -
+       growing out of that would be growing out of a column of nothing.
+       --rail-ink is the run the ticks actually occupy, every row at the height
+       they share, which the script measures because it depends on how many
+       there are.
+
+       The 12px and the 16px are the hit box's hover slop, which it carries as
+       padding, and the rail's own 4px on top of it. An absolute offset is
+       measured from the border edge, outside both, so they are added back. */
+    top: 16px;
+    bottom: auto;
+    height: var(--rail-ink, 50vh);
+    margin: 0;
+    width: var(--rail);
+    max-width: none;
+    transform: none;
+    opacity: 0;
+    filter: blur(0.625rem);
+    /* One set of figures, so opening and closing are the same move run in
+       opposite directions. Declared only here: a transition runs at whatever is
+       computed for the state it is heading towards, so leaving the open rule
+       below silent on the subject is what makes the two directions agree by
+       construction rather than by being kept in step by hand. */
+    transition: width 400ms var(--ease-expo),
+                height 400ms var(--ease-expo),
+                top 400ms var(--ease-expo),
+                opacity 800ms var(--ease-expo),
+                filter 800ms var(--ease-expo);
+  }
+  /* Open, it is the panel it always was: the full height of the window less the
+     working line at each end, and sitting on that line rather than wherever the
+     hairlines happen to have got to. --drop is how far the rail is still short
+     of its pinned line over the first screenful, so taking it off the top is
+     what holds this on the line while the rail under it is still travelling. */
+  .reader.nav-open .nav-panel {
+    top: calc(12px - var(--drop, 0px));
+    height: calc(100vh - var(--top) * 2);
+    width: var(--sheet-w, var(--text-w));
+    opacity: 1;
+    filter: blur(0);
+  }
+
+  /* The entries are laid out at the width they will end at and simply clipped
+     while the panel is narrower than they are, so nothing re-wraps as it opens.
+     The width the panel opens to is this list's, measured. */
+  .nav-list { width: max-content; max-width: var(--text-w); }
+
+  /* The collapsed layer, clearing out of the way of the expanded one. It used
+     to stay on beside the panel; it is underneath it now, and hairlines read
+     through the entries as noise. */
+  .nav-rail { transition: opacity 100ms var(--ease-expo); }
+  .reader.nav-open .nav-rail { opacity: 0; }
+}
+
 /* ---------- Prose ---------- */
 /* Nothing dissolves at the top any more. The wordmark travels with the text,
    so there is nothing for the text to pass underneath and nothing to hide. */
@@ -482,11 +612,27 @@ a { color: inherit; text-decoration: none; }
   font-family: var(--font-display);
   font-weight: 600;
   line-height: 1.1;
-  background-image: linear-gradient(0deg, var(--accent-from) 0%, var(--accent-to) 100%);
+  background-image: var(--display-ramp);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
 }
+/* Except the wordmark, which paints nothing: its two halves each paint their
+   own, so that they can be moved independently of one another.
+
+   A background clipped to text takes in the letters of the whole subtree, so
+   leaving the wordmark painting as well had the pair of them drawing the same
+   glyphs twice over - once by the wordmark, at the letters' laid-out positions,
+   and once by the half itself, at the offset position it has been given. Two
+   paintings that agree are invisible. The instant they disagree, which is the
+   entire point of moving one of them, the second copy shows: a ghost of "to
+   Interior Design" sitting across "The Tenant's Guide". Exactly one thing may
+   draw a letter.
+
+   It has to come after the rule above rather than beside the halves, where it
+   reads better: same specificity, and the last one to match is the one that
+   counts. */
+.brand { background-image: none; }
 .brand { font-size: 48px; letter-spacing: -1.5px; }
 .heading--chapter {
   font-size: 28px;
@@ -683,8 +829,8 @@ a { color: inherit; text-decoration: none; }
        as --sheet-w, because a box cannot be grown towards max-content - a
        transition needs two lengths, and that is not one. The fallback below is
        what stands in until it has. */
-    --nib:     44px;
-    --sheet-h: min(70vh, calc(100vh - 32px));
+    --nib:     2.75rem;
+    --sheet-h: min(70vh, calc(100vh - 2rem));
   }
 
   /* The column is the measure itself, rather than the measure plus the lane the
@@ -706,69 +852,86 @@ a { color: inherit; text-decoration: none; }
      ever leaves the screen and comes back.
 
      Pinned by its bottom right corner, so the growth runs up and to the left,
-     away from the thumb rather than under it. */
+     away from the thumb rather than under it.
+
+     A grid of one cell, so both layers below sit in it centred on each other
+     and neither has to be positioned by hand. Only width, height, and transform
+     are ever animated on it. The shadow is the same in both states rather than
+     transitioned between two, because a shadow is a paint and paints are not
+     what this box is for.
+
+     Height is animated alongside width, which the spec does not ask for -
+     there, the box only widens. Here it is a square becoming a sheet, so both
+     sides have to travel, on the same 400ms and the same curve. */
   .nav-hit {
     position: fixed;
     top: auto;
     left: auto;
-    right: 16px;
-    bottom: 16px;
-    display: block;
+    right: 1rem;
+    bottom: 1rem;
+    display: grid;
+    /* One cell, cut to the box and not to what is in it. Without this the
+       implicit track sizes itself to the largest layer - the sheet - and
+       `place-items` then centres both layers in a 315x568 track rather than in
+       the 2.75rem square, which puts them a long way down and to the right of
+       the thing meant to be holding them. minmax(0, 1fr) is what stops a track
+       from growing to its contents' minimum. */
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+    place-items: center;
     width: var(--nib);
     height: var(--nib);
     margin: 0;
     padding: 0;
     pointer-events: auto;
-    overflow: hidden;              /* the corner has to clip both states */
+    overflow: hidden;              /* the corner has to clip both layers */
     background: var(--bg);
-    border-radius: 8px;
-    box-shadow: 0 8px 24px rgba(81, 58, 29, 0.12),
-                0 2px 6px rgba(81, 58, 29, 0.06);
-    transition: width 200ms cubic-bezier(0.44, 0, 0.4, 1),
-                height 200ms cubic-bezier(0.44, 0, 0.4, 1),
-                box-shadow 200ms cubic-bezier(0.44, 0, 0.4, 1);
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1.5rem rgba(81, 58, 29, 0.12),
+                0 0.125rem 0.375rem rgba(81, 58, 29, 0.06);
+    transition: width 400ms var(--ease-expo),
+                height 400ms var(--ease-expo),
+                transform 400ms var(--ease-expo);
   }
   /* pointer-events stay on: this box is the contents now, and the panel inside
      it asks for them back on its own account. */
   .reader.nav-open .nav-hit {
-    width: var(--sheet-w, calc(100vw - 32px));
+    width: var(--sheet-w, calc(100vw - 2rem));
     height: var(--sheet-h);
-    box-shadow: 0 12px 32px rgba(81, 58, 29, 0.10),
-                0 2px 8px rgba(81, 58, 29, 0.05);
   }
+  /* Pressed, and only while it is still a button. Open, it is a sheet, and a
+     sheet does not take a press. The 400ms above is what carries it. */
+  .reader:not(.nav-open) .nav-hit:active { transform: scale(0.95); }
 
-  /* ----- the hairlines -----
-     Held in the corner rather than laid out in the box, so growing the box
-     leaves them exactly where they are and they are simply covered over. 18px
-     of padding is half the square less half a row, which is what lets the first
-     and last ticks reach the middle instead of stopping short against an edge.
-     Masked at both ends, so ticks fade at the opening rather than blinking out
-     of it. */
+  /* Both layers occupy the one cell, so they are centred on each other and
+     stacked. Neither is ever taken out of the document: the box's width must
+     never be waiting on content to reflow. */
+  .nav-rail, .nav-panel { grid-area: 1 / 1; }
+
+  /* ----- the collapsed layer: the hairlines -----
+     1.125rem of padding is half the square less half a row, which is what lets
+     the first and last ticks reach the middle instead of stopping short against
+     an edge. Masked at both ends, so ticks fade at the opening rather than
+     blinking out of it.
+
+     It clears out almost at once on the way open - 100ms - so the box is empty
+     while it grows, and comes back the same way. */
   .nav-rail {
-    position: absolute;
-    right: 0;
-    bottom: 0;
     width: var(--nib);
     height: var(--nib);
-    padding: 18px 0 0;
+    padding: 1.125rem 0 0;
     margin: 0;
     -webkit-mask-image: linear-gradient(to bottom, transparent 0,
-                          #000 8px, #000 36px, transparent 100%);
+                          #000 0.5rem, #000 2.25rem, transparent 100%);
     mask-image: linear-gradient(to bottom, transparent 0,
-                  #000 8px, #000 36px, transparent 100%);
-    transition: opacity 160ms cubic-bezier(0.44, 0, 0.4, 1) 90ms;
+                  #000 0.5rem, #000 2.25rem, transparent 100%);
+    transition: opacity 100ms var(--ease-expo);
   }
-  /* Out at once on the way open, so the box is empty while it grows. Back only
-     after it has shrunk again, which is the delay above. */
-  .reader.nav-open .nav-rail {
-    opacity: 0;
-    transition: opacity 100ms cubic-bezier(0.44, 0, 0.4, 1);
-  }
+  .reader.nav-open .nav-rail { opacity: 0; }
   /* The air under the last tick is a box rather than the padding that holds the
      first one down, because a scroll container's bottom padding is left out of
-     its own scrollHeight - so the list would stop 18px short and the closing
+     its own scrollHeight - so the list would stop short and the closing
      sections could never reach the middle. A box is counted. */
-  .nav-rail::after { content: ''; display: block; height: 18px; }
+  .nav-rail::after { content: ''; display: block; height: 1.125rem; }
 
   /* Left aligned as they are on a wide screen - a tick's length is what says
      whether it is a chapter or a section, and lengths only read against a
@@ -786,41 +949,133 @@ a { color: inherit; text-decoration: none; }
   .reader.nav-open .nav-tick { width: 10px; }
   .reader.nav-open .nav-tick--chapter { width: var(--rail); }
 
-  /* ----- the contents -----
+  /* ----- the expanded layer: the contents -----
      Laid out at the open size from the start and clipped by the box, rather
      than sized with it. So the entries never reflow, never shift under the
      reader, and the list can be scrolled to where you are the instant it is
-     asked for - at 44px it would have measured itself against the square.
-     Growing the box just uncovers more of something already there.
+     asked for - at 2.75rem it would have measured itself against the square.
+
+     It arrives out of focus and undersized and resolves into place, and it is
+     deliberately slower than the box that carries it: the box has finished
+     widening at 400ms while this is still un-blurring and growing at 800ms.
+     The lag is the effect. Do not shorten it to match.
 
      No background, no corner and no shadow of its own: it is inside the box,
      and the box is the one carrying all three. */
   .nav-panel {
-    position: absolute;
-    top: auto;
-    left: auto;
-    right: 0;
-    bottom: 0;
+    /* In the box's one cell, and centred in it. Both have to be said here: the
+       stacked layout above pins this panel to the window with `position: fixed`
+       and hangs it off the top, and a fixed descendant is not clipped by an
+       ancestor's overflow at all - so left alone it escapes the box entirely
+       and lands near the top of the screen. Static puts it back in the cell,
+       and place-self overrides the flex-start the wide layout gives it, which
+       would otherwise beat the container's own centring. */
+    position: static;
+    place-self: center;
     /* As wide as the longest entry, and no wider than the screen. Past that the
        entries wrap, which is the one thing that should make this box narrower
        than its own contents want. */
     width: max-content;
-    max-width: calc(100vw - 32px);
+    max-width: calc(100vw - 2rem);
     height: var(--sheet-h);
     margin: 0;
     background: none;
     border-radius: 0;
     box-shadow: none;
-    transform: none;
-    transition: opacity 140ms cubic-bezier(0.44, 0, 0.4, 1);
+    opacity: 0;
+    filter: blur(0.625rem);
+    transform: scale(0.4);
+    transition: opacity 800ms var(--ease-expo),
+                filter 800ms var(--ease-expo),
+                transform 600ms var(--ease-expo);
   }
-  /* In only once the box has finished growing: the entries arrive in a sheet
-     that is already the right size, which is the whole point of the delay. */
   .reader.nav-open .nav-panel {
-    transition: opacity 180ms cubic-bezier(0.44, 0, 0.4, 1) 160ms;
+    opacity: 1;
+    filter: blur(0);
+    transform: scale(1);
   }
+
+  /* ----- first arrival -----
+     Once, on the load that first puts it on screen, and never again - the
+     script hangs it on a flag that outlives any one call and takes the class
+     off at 750ms so it cannot fight the transitions above. The overshoot is
+     in the curve. */
+  @keyframes nav-nib-in {
+    from { opacity: 0; transform: scale(0.5) rotate(90deg); }
+    to   { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+  .nav-hit.is-arriving {
+    animation: nav-nib-in 500ms cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+  }
+  /* The dock's own fade is the wide layout's way in. Here the arrival above is
+     the way in, and two reveals over one another only muddies both. */
+  .js.swept .nav-dock { transition-duration: 0s; }
+}
+
+/* ---------- The opening ----------
+   First load, the page assembles in the order you would look at it. The picture
+   dissolves in and is left alone to finish turning over. Then the wordmark
+   rises out from behind its top edge and settles on its line - which is why the
+   hero is given a layer over the header above: for the title to come out from
+   behind the photograph, the photograph has to be in front of it. And last, the
+   guide itself - the rail's hairlines and the words under the picture, together,
+   because they are the same arrival. The shape of the guide has nothing to
+   describe until there is a guide under it.
+
+   None of it starts until the picture is actually in. Dissolving in a box that
+   has not decoded yet is a fade to nothing, and the guide opens on its picture.
+
+   All of it hangs off `.js`, set on the document in the head before the first
+   paint, so a page without script never hides anything and simply is. */
+.js .hero     { opacity: 0; }
+.js .nav-dock { opacity: 0; }
+.js .prose    { opacity: 0; }
+.js .brand    { opacity: 0; transform: translateY(calc(100% + 20px)); }
+
+.js.entered .hero {
+  opacity: 1;
+  transition: opacity 800ms cubic-bezier(0.44, 0, 0.4, 1);
+}
+/* The rail and the guide it stands for, on one rule, because they arrive as one
+   thing. Held until the wordmark is already on its way up, so they are the last
+   of it rather than something the title then has to catch up with. */
+.js.swept .nav-dock,
+.js.swept .prose {
+  opacity: 1;
+  transition: opacity 600ms cubic-bezier(0.44, 0, 0.4, 1) 300ms;
+}
+/* The travel is longer than the fade and starts fractionally before it, so the
+   letters are already moving as they become legible - it reads as the wordmark
+   coming out from behind the picture rather than appearing and then sliding.
+
+   `swept`, not `entered`, and so no delay of its own: it waits for the cloud to
+   finish crossing the picture, which the script times, and then goes. What it
+   rises out of is the furnished room, settled, rather than a photograph still
+   turning over underneath it. */
+.js.swept .brand {
+  opacity: 1;
+  transform: none;
+  transition: transform 700ms var(--ease-expo),
+              opacity 400ms var(--ease-expo) 60ms;
+}
+
+/* The corner window's own moves, off entirely rather than merely instant: a
+   blur and a scale that snap are still a change of state being drawn twice. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-hit, .nav-rail, .nav-panel { transition: none !important; }
+  .nav-hit.is-arriving { animation: none !important; opacity: 1; transform: none; }
+  .reader:not(.nav-open) .nav-hit:active { transform: none; }
+  .nav-panel { filter: none !important; transform: none !important; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  * { transition-duration: 0.01ms !important; }
+  /* The delays go too, or the opening becomes three things popping in on a
+     stagger, which is the part of it that would be felt rather than seen. */
+  * {
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
+    animation-iteration-count: 1 !important;
+  }
 }

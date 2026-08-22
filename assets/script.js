@@ -9,6 +9,7 @@
   var navPanel = document.querySelector('.nav-panel');
   var dock = document.querySelector('.nav-dock');
   var lead = document.querySelector('.lead');
+  var brand = document.querySelector('.brand');
   var head = document.getElementById('head');
   var prose = document.getElementById('prose');
 
@@ -115,11 +116,90 @@
   // and the cursor's trail is the cloud being put back under the pointer.
   //
   // The cloud itself is value noise with a domain warp, the same billowing fbm
-  // as the sketch this came from, sampled once per cell of a pixel-and-gap
-  // grid and snapped to a few opacity tiers. That snapping is what makes it
-  // read as pixels rather than as a blur.
+  // as the sketch this came from, sampled once per cell of a coarse grid. The
+  // grid is a way of paying for the cloud once every six pixels instead of
+  // every one; it is not meant to be seen. So the alpha it holds is carried
+  // back up to the picture smoothly and blurred half a cell as it goes, and
+  // what arrives is a soft edge rather than a staircase of blocks.
+  // ---------- the opening ----------
+  // Handing the page over: the picture dissolves in, the hairlines follow, the
+  // wordmark rises out from behind the picture. The order and the timing are
+  // the stylesheet's; all that is decided here is when it may begin.
+  //
+  // Which is once the picture is in. The cloud waits on both files - it paints
+  // one over the other - so hanging the opening on the same moment means what
+  // dissolves in is the empty room, and the sweep to the furnished one follows
+  // out of it rather than interrupting it.
+  //
+  // The backstop is the promise it opens anyway. A file that never decodes must
+  // not leave the page blank, and 2.5s of nothing is already too long - better
+  // an empty box that fades in and fills a moment later than a white screen.
+  //
+  // The wordmark is held back further than the rest, until the cloud has all
+  // but finished crossing: it rises out from behind the photograph, and it
+  // should rise out of the room the guide is actually about rather than compete
+  // with the picture still changing underneath it. So the sweep's timing lives
+  // out here, where both the cloud and the opening can read it.
+  //
+  // All but. It starts half a second early, into the last of the sweep, and the
+  // two overlap rather than queue: by then the cloud is off the left three
+  // quarters of the picture and only the far edge is still clearing, so there
+  // is nothing left for the wordmark to compete with - and waiting for the
+  // very last cell put a hole in the opening where nothing happened at all.
+  var SWEEP_MS = 2200, SWEEP_WAIT = 400;
+  var BRAND_LEAD = 500;            // how far into the sweep's end the wordmark starts
+  var entered = false, cleared = false;
+  function enter() {
+    if (entered) return;
+    entered = true;
+    document.documentElement.classList.add('entered');
+    // Whichever way the page opened, the sweep starts with it - so the wait is
+    // the same wait, counted from here. Nothing to wait for if there is no
+    // cloud, and nothing to wait for if the reader has asked for less movement:
+    // the stylesheet drops every delay in that case, and a script holding one
+    // of its own would be the only thing left staggering the opening.
+    var still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (heroFig && !still) setTimeout(clear, Math.max(0, SWEEP_WAIT + SWEEP_MS - BRAND_LEAD));
+    else clear();
+  }
+  // The cloud is gone. The only thing hung off this is the wordmark.
+  function clear() {
+    if (cleared) return;
+    cleared = true;
+    document.documentElement.classList.add('swept');
+    arrive();                        // the corner window is on screen now
+  }
+
+  // The corner window's one arrival. `arrived` sits out here rather than being
+  // worked out from the state of anything, so it survives every later call and
+  // the animation can only ever play on the load that first puts the window on
+  // screen - not again when the guide is scrolled, resized, or opened.
+  //
+  // Taken off again at 750ms, a quarter-second past the end of it. An animation
+  // left on the element keeps its own transform, and would win against every
+  // transition the window has for as long as it stayed.
+  var arrived = false;
+  function arrive() {
+    if (arrived || !navHit || !phone.matches) return;
+    arrived = true;
+    navHit.classList.add('is-arriving');
+    setTimeout(function () { navHit.classList.remove('is-arriving'); }, 750);
+  }
+  setTimeout(enter, 2500);
+
   var heroFig = document.querySelector('.hero--reveal');
   if (heroFig) heroReveal(heroFig);
+  else openOnHero();
+
+  // No cloud to wait on, so the one picture there is decides it.
+  function openOnHero() {
+    var img = document.querySelector('.hero img');
+    if (!img) return enter();
+    if (img.decode) return void img.decode().then(enter, enter);
+    if (img.complete) return enter();
+    img.addEventListener('load', enter);
+    img.addEventListener('error', enter);
+  }
 
   function heroReveal(fig) {
     var full = fig.querySelector('.hero-full');
@@ -139,13 +219,13 @@
     var CELL = 6;                    // the block, in CSS pixels
     var NOISE = 0.019;               // cloud size, per screen pixel - lower is bigger
     var SOFT = 0.30;                 // how gradual the cloud's own edge is
-    var GRAIN = 0.45;                // per-cell noise, which frays every edge
-    var TIERS = 4;                   // opacity steps - the pixelated look
+    var GRAIN = 0.28;                // per-cell noise, which frays every edge
+    var BLUR = 3;                    // how far the mask's edge is smeared, in CSS px
     var DRIFT = 0.55;                // how fast the cloud boils while it travels
-    var SWEEP_MS = 3400, SWEEP_WAIT = 400;
     var FRONT = 2.4;                 // how hard the sweep's edge is
-    var CURSOR_R = 192;              // the hole the pointer opens
+    var CURSOR_R = 384;              // the hole the pointer opens
     var TRAIL = 20;                  // frames of cursor history kept
+    var LINGER_MS = 900;             // how long the hole outlives the pointer
 
     // ---- the same value noise, domain warped so the cloud billows ----
     function hash(x, y) {
@@ -208,16 +288,34 @@
     }
 
     // ---- the pointer, and the tail it drags ----
-    var mx = -1e4, my = -1e4, tx = -1e4, ty = -1e4, over = false;
+    // Followed on the window, not on the picture. A hole this wide is still
+    // half over the photograph when the pointer is well past its edge, and a
+    // trail that ended at the frame took the whole effect off the moment the
+    // cursor crossed a line the reader cannot see - it read as the picture
+    // rejecting the pointer rather than as the pointer leaving. So it counts
+    // wherever it is within a hole's reach, and whatever falls outside the
+    // photograph is simply drawn off it.
+    //
+    // And when it does go, it goes gradually: `alive` runs the hole down over
+    // LINGER_MS from wherever it was left, rather than the trail being pulled
+    // out from under it a frame at a time.
+    var mx = -1e4, my = -1e4, tx = -1e4, ty = -1e4, over = false, alive = 0;
     var tail = [];
-    fig.addEventListener('pointermove', function (e) {
+    window.addEventListener('pointermove', function (e) {
+      // Every move on the page reaches this now, and asking the picture where
+      // it is costs a layout. Not worth paying for one that is not on screen.
+      if (!seen) return;
       var r = full.getBoundingClientRect();
-      tx = e.clientX - r.left; ty = e.clientY - r.top;
+      var x = e.clientX - r.left, y = e.clientY - r.top;
+      if (x < -CURSOR_R || x > r.width + CURSOR_R ||
+          y < -CURSOR_R || y > r.height + CURSOR_R) { over = false; return; }
+      tx = x; ty = y;
       if (!over) { mx = tx; my = ty; }        // arrive where the pointer is
       over = true;
       wake();
-    });
-    fig.addEventListener('pointerleave', function () { over = false; });
+    }, { passive: true });
+    // Out of the window altogether, which no amount of moving will report.
+    document.addEventListener('pointerleave', function () { over = false; });
 
     // ---- the loop ----
     // It runs while there is something to draw: the sweep, a pointer on the
@@ -251,7 +349,11 @@
       mx += (tx - mx) * 0.32; my += (ty - my) * 0.32;
       if (over) tail.push(mx, my);
       while (tail.length > TRAIL * 2) tail.splice(0, 2);
-      if (!over && tail.length) tail.splice(0, 2);      // let it drain, not vanish
+      // The trail is left where the pointer left it and dimmed, so what fades
+      // is the hole rather than its shape - a tail spliced away instead
+      // shortened from the far end, which looked like it was being swallowed.
+      alive = over ? 1 : alive - dt * 1000 / LINGER_MS;
+      if (alive <= 0) { alive = 0; tail.length = 0; }
       var tn = tail.length >> 1;
 
       var e0 = 0.5 - SOFT, e1 = 0.5 + SOFT;
@@ -282,30 +384,41 @@
                 if (c > back) { back = c; if (back >= 1) break; }
               }
             }
-            if (back > 0) v = Math.max(v, back * 1.35);
+            if (back > 0) v = Math.max(v, back * 1.35 * alive);
           }
 
           v += (hash(i + 1234, j + 5678) - 0.5) * GRAIN;   // fray every edge alike
           var a = smoothstep(e0, e1, v);
-          a = a <= 0.012 ? 0 : Math.ceil(a * TIERS) / TIERS;   // snap - the pixel look
-          data[(j * cols + i) * 4 + 3] = (a * 255) | 0;       // alpha only; the rest is black
+          if (a <= 0.012) a = 0;                             // let the clear parts go fully clear
+          data[(j * cols + i) * 4 + 3] = (a * 255) | 0;      // alpha only; the rest is black
         }
       }
 
-      // One cell to one pixel, then blown up with smoothing off so the blocks
-      // keep their edges. This is the whole cloud in two calls.
+      // One cell to one pixel, then blown up with smoothing on, and blurred
+      // about half a cell on the way so the ramps between cell centres stop
+      // reading as facets. This is the whole cloud in two calls.
+      //
+      // It is drawn a little larger than the box on every side. A blur reaches
+      // past its own edge for what is there, finds nothing, and fades the
+      // outermost pixels of the mask - which on a mask means the furnished room
+      // showing early down the borders. Overscanning puts that fade outside the
+      // picture, at the cost of a fraction of a per cent of scale.
       gctx.putImageData(cells, 0, 0);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(grid, 0, 0, cols, rows, 0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      var m = Math.ceil(BLUR * dpr * 2);
+      ctx.filter = 'blur(' + (BLUR * dpr) + 'px)';
+      ctx.drawImage(grid, 0, 0, cols, rows, -m, -m, canvas.width + 2 * m, canvas.height + 2 * m);
+      ctx.filter = 'none';
 
       // Keep the empty room only where the cloud is.
       ctx.globalCompositeOperation = 'source-in';
       ctx.drawImage(empty, 0, 0, canvas.width, canvas.height);
       ctx.globalCompositeOperation = 'source-over';
 
-      if (sweeping || over || tn > 0) requestAnimationFrame(frame);
+      if (sweeping || over || alive > 0) requestAnimationFrame(frame);
       else { running = false; ctx.clearRect(0, 0, w, h); }
     }
 
@@ -317,6 +430,10 @@
     function begin() {
       if (armed) return;
       armed = true;
+      // Both files are in, so the page can open - before the canvas is sized,
+      // which can fail on a picture with no box yet and would otherwise take
+      // the opening down with it.
+      enter();
       if (!size()) return;
       started = performance.now();
       wake();
@@ -360,6 +477,25 @@
     // 25,000px out. The header starts on the dock's line - the dock is above it
     // and of no height, so its margin sets them both - and never moves.
     dockTop = head.offsetTop;
+    // The wordmark's second half paints its own gradient - see the stylesheet -
+    // so it has to be told the box that gradient belongs to: the whole
+    // wordmark, and how far down it this half has landed. Both change when the
+    // title turns onto two lines, which is why they are taken here with
+    // everything else that a new width invalidates.
+    // Off the boxes as they sit, not off offsetTop: the two answer to whatever
+    // is positioned above them, and asked early enough - before the display
+    // face has swapped in and the line has settled - they answered to different
+    // things and the drop came back a whole header out. The difference between
+    // two rects cannot be wrong that way, and the transform the wordmark rides
+    // in on moves both of them equally, so it cancels.
+    if (brand) {
+      var sheet = brand.getBoundingClientRect().top;
+      brand.style.setProperty('--brand-sheet', brand.offsetHeight + 'px');
+      for (var bi = 0; bi < brand.children.length; bi++) {
+        brand.children[bi].style.setProperty('--brand-drop', Math.round(
+          brand.children[bi].getBoundingClientRect().top - sheet) + 'px');
+      }
+    }
     // The furthest the working line can travel: at the end of the scroll it is
     // still only halfway down the window, so this is where reading finishes.
     // Not the document's own height, which is half a screen further on and can
@@ -378,9 +514,16 @@
     // would leave the window dead when the phone layout came back. Crossing the
     // breakpoint fires a relayout of its own, so skipping it here costs
     // nothing.
-    if (!phone.matches || !ticks.length) return;
+    if (!ticks.length) return;
     railRow = ticks[0].parentNode.offsetHeight;
     railPad = ticks[0].parentNode.offsetTop - rail.offsetTop;
+    // The run the hairlines actually occupy - every row, at the height they all
+    // share. The rail's own box is the height of the window and mostly empty
+    // under the last tick, so it is no use to the wide layout's panel, which
+    // grows out of the marks themselves. It depends on how many there are, so
+    // it cannot be a number the stylesheet knows.
+    reader.style.setProperty('--rail-ink', (ticks.length * railRow) + 'px');
+    if (!phone.matches) return;
     railView = rail.clientHeight;
     // Worked out rather than read off scrollHeight, which leaves the bottom
     // padding out of its answer - and that padding is the whole of what lets
@@ -530,6 +673,10 @@
     // as much as its width - so watching the box itself is surer than waiting
     // for a resize event and trusting that the layout has caught up by then.
     if (shots[0]) watch.observe(shots[0]);
+    // And the wordmark. Its own box is what the second half's gradient is cut
+    // to, and that box changes twice over a load that nothing else notices:
+    // when the display face swaps in, and when the title turns onto two lines.
+    if (brand) watch.observe(brand);
   } else if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(function () { measure(); place(); update(); });
   }
@@ -547,8 +694,12 @@
     // is laid out at its own width the whole time it is closed, whatever the
     // box around it is doing, so the answer is always there for the asking -
     // and one that was cached went stale on the turn of a phone.
-    if (open && phone.matches) {
-      reader.style.setProperty('--sheet-w', navPanel.offsetWidth + 'px');
+    // Measured off the list rather than the panel that holds it. The panel is
+    // the thing being widened, so on a wide screen its own width is 19px at the
+    // moment the question is asked; the entries inside it are laid out at the
+    // width they want either way, and that is the width to open to.
+    if (open && navList) {
+      reader.style.setProperty('--sheet-w', navList.offsetWidth + 'px');
     }
     reader.classList.toggle('nav-open', open);
     // The labels only fade in at 130ms, so the list is invisible right now.

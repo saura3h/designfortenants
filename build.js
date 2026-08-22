@@ -573,6 +573,12 @@ const html = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- The page marks itself as scripted before anything paints, so the opening
+       sequence can hide what it is about to bring in without a frame of it
+       showing first. Without script the class never lands and none of it
+       applies: the page is simply there, which is the bargain every other
+       effect here makes. -->
+  <script>document.documentElement.classList.add('js')</script>
   <title>The Tenant's Guide to Interior Design</title>
   <meta name="description" content="${esc(lead || '')}" />
   <link rel="stylesheet" href="assets/styles.css?v=${v}" />
