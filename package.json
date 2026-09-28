@@ -3,7 +3,7 @@
   "private": true,
   "description": "The Tenant's Guide to Interior Design - build scripts",
   "scripts": {
-    "build": "node build.js",
+    "page": "node build.js",
     "sizes": "node encode.js"
   },
   "devDependencies": {
