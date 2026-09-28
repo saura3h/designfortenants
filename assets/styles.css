@@ -197,6 +197,9 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   z-index: 1;
 }
+/* A <picture> is only a wrapper choosing between formats - it has to get out of
+   the way and let the photograph inside it hold the box. */
+.hero picture,
 .hero img {
   display: block;
   width: 100%;
@@ -331,21 +334,24 @@ a { color: inherit; text-decoration: none; }
   box-shadow: 0 12px 32px rgba(81, 58, 29, 0.10),
               0 2px 8px rgba(81, 58, 29, 0.05);
   overflow: hidden;              /* the radius has to clip the entries scrolling past */
-  /* In from the left as it fades up, and back out the same way - it arrives
-     from the rail it belongs to rather than across the page. The delay it used
-     to open on was there to let the prose clear out first, so the two never
-     overlapped as text; the panel is opaque now and covers whatever it lands
-     on, so there is nothing to wait for. */
+  /* In from the left as it fades up - it arrives from the rail it belongs to
+     rather than across the page. The way out is not the way in run backwards:
+     closing is a fade and nothing else, so only the opacity runs, and the
+     slide is put back with no duration once the fade is done. The panel dims
+     where it stands instead of backing away. The opening's own figures are on
+     the open rule below. */
   opacity: 0;
   pointer-events: none;
   transform: translateX(-16px);
   transition: opacity 200ms cubic-bezier(0.44, 0, 0.4, 1),
-              transform 200ms cubic-bezier(0.44, 0, 0.4, 1);
+              transform 0s 200ms;
 }
 .reader.nav-open .nav-panel {
   opacity: 1;
   pointer-events: auto;
   transform: none;
+  transition: opacity 200ms cubic-bezier(0.44, 0, 0.4, 1),
+              transform 200ms cubic-bezier(0.44, 0, 0.4, 1);
 }
 
 .nav-list { position: relative; z-index: 1; }
@@ -509,16 +515,17 @@ a { color: inherit; text-decoration: none; }
     transform: none;
     opacity: 0;
     filter: blur(0.625rem);
-    /* One set of figures, so opening and closing are the same move run in
-       opposite directions. Declared only here: a transition runs at whatever is
-       computed for the state it is heading towards, so leaving the open rule
-       below silent on the subject is what makes the two directions agree by
-       construction rather than by being kept in step by hand. */
-    transition: width 400ms var(--ease-expo),
-                height 400ms var(--ease-expo),
-                top 400ms var(--ease-expo),
-                opacity 800ms var(--ease-expo),
-                filter 800ms var(--ease-expo);
+    /* The two directions are different moves, so each state declares its own:
+       a transition runs at whatever is computed for the state it is heading
+       towards, and this is the closing. Closing is a fade on the spot - only
+       the opacity runs, and the geometry and the blur are put back with no
+       duration once the fade is done, so the panel never shrinks or travels
+       on its way out. The opening's figures are on the open rule below. */
+    transition: opacity 300ms var(--ease-expo),
+                width 0s 300ms,
+                height 0s 300ms,
+                top 0s 300ms,
+                filter 0s 300ms;
   }
   /* Open, it is the panel it always was: the full height of the window less the
      working line at each end, and sitting on that line rather than wherever the
@@ -531,6 +538,11 @@ a { color: inherit; text-decoration: none; }
     width: var(--sheet-w, var(--text-w));
     opacity: 1;
     filter: blur(0);
+    transition: width 400ms var(--ease-expo),
+                height 400ms var(--ease-expo),
+                top 400ms var(--ease-expo),
+                opacity 800ms var(--ease-expo),
+                filter 800ms var(--ease-expo);
   }
 
   /* The entries are laid out at the width they will end at and simply clipped
@@ -602,6 +614,74 @@ a { color: inherit; text-decoration: none; }
   scroll-margin-top: var(--top);
 }
 
+/* ---------- Copying a link ----------
+   Every heading is a place in the guide that can be sent to somebody, so the
+   title itself is the way to take that link. It is set exactly as the heading
+   it sits in and draws nothing of its own, so the page reads as it always did
+   until the pointer is on a heading - and then it says what it is. */
+/* Its colour and its bare underline are already settled, up where every link
+   on the page is: it inherits the heading's own colour and draws no line. */
+.head-link {
+  position: relative;            /* the tooltip hangs off it */
+  transition: color 120ms ease;  /* for the hover below */
+}
+/* The same move the contents make under a pointer. A chapter's letters are a
+   gradient showing through a transparent colour and have none to shift, so
+   they sit still and the tooltip is the whole of the answer there. */
+.heading--section .head-link:hover { color: var(--ink); }
+/* Arrived at by keyboard rather than by pointer: the tooltip shows either way,
+   and the underline is what says which heading is holding focus. A chapter's
+   letters paint nothing, so the line is asked for in the accent by name. */
+.head-link:focus { outline: none; }
+.head-link:focus-visible .head-text {
+  text-decoration: underline;
+  text-decoration-color: var(--accent);
+  text-underline-offset: 3px;
+}
+
+/* Above the heading and flush with its first letter. Above, because the air
+   over a heading is the guide's own and always empty, where the room to its
+   right belongs to the pictures. */
+.tip {
+  position: absolute;
+  left: 0;
+  bottom: 100%;
+  margin-bottom: 8px;
+  padding: 3px 8px;
+  /* A small card rather than a dark chip: the page's own white, a corner barely
+     turned, and a shadow soft enough to read as lift instead of as an edge. */
+  border-radius: 2px;
+  background: var(--bg);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(81, 58, 29, 0.06), 0 4px 12px rgba(81, 58, 29, 0.10);
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.5;
+  letter-spacing: -0.06px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 120ms ease, transform 120ms ease;
+  pointer-events: none;          /* it is a label, never a target */
+}
+.head-link:hover .tip,
+.head-link:focus-visible .tip,
+.head-link.is-copied .tip { opacity: 1; transform: none; }
+
+/* Said rather than shown, for a reader who is being read to. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 /* The display style. Two things wear it: the wordmark that opens the guide, and
    the heading that opens a chapter. Same face, same weight, same gradient - the
    size is what tells them apart, and the size is all that does. */
@@ -612,6 +692,12 @@ a { color: inherit; text-decoration: none; }
   font-family: var(--font-display);
   font-weight: 600;
   line-height: 1.1;
+}
+/* The gradient is cut to the letters, so it is set on whatever is actually
+   holding them. A chapter heading hands its letters to the button inside it,
+   and the clip goes with them: a box clipped to its own text takes everything
+   under it into the clip as well, and the tooltip is under it. */
+.brand, .heading--chapter .head-text, .nav-item--chapter {
   background-image: var(--display-ramp);
   -webkit-background-clip: text;
   background-clip: text;
@@ -682,16 +768,42 @@ a { color: inherit; text-decoration: none; }
   margin: 0 auto;
   width: min(var(--pic-max), 100%, calc(50vw - var(--pane-pad) * 2));
 }
+.shot picture,
 .shot img {
   display: block;
   width: 100%;
   height: auto;
 }
-/* Picture and credit together, so a jump into a section never leaves a credit
-   floating over the empty space its photo has not arrived in yet. Nothing fades
-   unless the script is there to take the class off again. */
+
+/* ---------- Waiting for a photograph ----------
+   Every picture carries its own preview: the whole photograph at 28px across,
+   four hundred bytes of it, written into the page itself so it is there from
+   the first paint and never has to be fetched. The browser blows it up to the
+   picture's own width, and that is where the blur comes from - there is no
+   filter here and nothing to compute.
+
+   So the box is the right colours and the right shape before the file lands,
+   and a flick down the guide is a run of soft photographs sharpening rather
+   than a run of empty rectangles. The photograph fades over its own preview
+   when it arrives; the preview stays underneath, where nothing can see it.
+
+   Without a preview - no ladder built, so nothing to inline - the whole figure
+   waits at zero instead, credit and all, which is what it did before: a credit
+   floating over a space its photograph has not arrived in is worse than a beat
+   of nothing. Neither happens unless the script is there to take the class off
+   again. */
 .shot { transition: opacity 200ms ease; }
 .shot.is-pending { opacity: 0; }
+
+.shot.has-preview.is-pending { opacity: 1; }
+.shot.has-preview picture { background: var(--preview) center / cover no-repeat; }
+.shot.has-preview img { transition: opacity 200ms ease; }
+.shot.has-preview.is-pending img { opacity: 0; }
+
+/* The hero is fetched at once and is the first thing on the page, so its
+   preview is only ever up for a moment - but that moment is the whole of the
+   opening, and the opening is a picture. */
+.hero.has-preview .hero-full { background: var(--preview) center / cover no-repeat; }
 
 .credit {
   margin: 8px 0 0;
@@ -709,15 +821,13 @@ a { color: inherit; text-decoration: none; }
 
 
 /* ---------- The hero's reveal ----------
-   The guide opens on the room empty and lets it furnish itself, and afterwards
-   a cursor drawn across it brings the empty room back under the pointer.
+   The guide opens on the room empty and lets it furnish itself.
 
    The furnished photograph is the one in the flow: it holds the box and it is
    what shows if the script never runs. The empty one is loaded and never
    displayed - it is a source for the canvas over the top, which paints it back
    in wherever a pixel cloud covers. So there is one thing being animated, the
-   cloud's coverage, and both halves of the effect are the same thing: the sweep
-   is the cloud leaving, the trail is the cursor putting it back.
+   cloud's coverage: the sweep is the cloud leaving.
 
    Everything about how it looks is in the script, which is where the cloud is
    computed. This only stacks the layers. */
@@ -733,7 +843,7 @@ a { color: inherit; text-decoration: none; }
      its credit line, and a hundred per cent of that overshoots by 28px. The
      script sets this from the photograph as it measures it. */
   height: auto;
-  pointer-events: none;   /* the pointer is read from the figure, not caught here */
+  pointer-events: none;   /* an overlay, not a control */
 }
 
 /* ---------- Narrow ----------
@@ -989,10 +1099,16 @@ a { color: inherit; text-decoration: none; }
                 filter 800ms var(--ease-expo),
                 transform 600ms var(--ease-expo);
   }
+  /* The same figures again, not left to the closed rule: the narrow layout's
+     open rule above declares a transition of its own now, and without one here
+     it would win the open direction with the wrong figures. */
   .reader.nav-open .nav-panel {
     opacity: 1;
     filter: blur(0);
     transform: scale(1);
+    transition: opacity 800ms var(--ease-expo),
+                filter 800ms var(--ease-expo),
+                transform 600ms var(--ease-expo);
   }
 
   /* ----- first arrival -----

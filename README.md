@@ -8,7 +8,7 @@ Nine chapters, forty-eight sections.
 
 ## Running it
 
-Open `index.html` directly. No server, no dependencies.
+Open `index.html` directly. No server.
 
 After editing `../draftv4.md`:
 
@@ -17,6 +17,14 @@ node build.js
 ```
 
 Nothing in `index.html` is hand-edited - it is generated every time.
+
+That command also sizes the photographs, which is the one thing here with a
+dependency: sharp, once, with `npm install`. It is a build dependency and
+nothing the page loads, so the guide itself still runs off a folder of files
+with nothing installed anywhere. Without sharp the build says so and writes the
+page pointing at the originals, which works and weighs a hundred and sixty
+megabytes. `node build.js --no-images` skips the sizing when only the prose has
+moved, and it is skipped anyway for every picture that has not changed.
 
 ## How the page is put together
 
@@ -214,11 +222,59 @@ is worked out from the scroll position rather than measured, so scrolling still
 never forces a layout - and it comes off the prose's offset, not the rail's,
 because a pinned sticky element reports the position it has been moved to.
 
-Picking an entry writes `#that-section` into the address bar, but only as a
-marker of where you are. Loading the page is always loading the guide from the
-top: the anchor is dropped, the browser's scroll memory is turned off, and every
-refresh is a hard one. So the address bar is not a link back into the middle of
-the guide - if it should be, that is the one line to change.
+## The address
+
+The address bar says where you are. Every chapter and every section has an
+`#id` of its own - the heading's, which the build slugs from its title - and
+the one you are reading is written into the address as you read it. The
+introduction is the top of the page rather than a heading in it, so it is the
+bare address with nothing on the end.
+
+It is `replaceState`, so nothing moves for it and no history is made by it: the
+back button still leaves the guide the way it came in. And it is written a
+quarter-second after the reading settles rather than on the scroll itself,
+because a flick down the guide crosses a dozen sections on the way, browsers
+count those against a rate limit of their own, and an address strobing through
+the contents is not something anyone asked to watch.
+
+A link into the middle of the guide opens there. The address is read before
+anything else moves the page, and a name the guide does not have is no answer
+at all - then it opens at the top, as it always did, with the address tidied up
+behind it. The browser's own scroll memory stays off either way.
+
+Landing is not something the page can do once and be done with. The offsets it
+lands on are taken before the display face has swapped in and before a single
+picture has decoded, and both move every heading below them - by a screen on a
+fast connection, by a dozen on a slow one. So the landing is held: every
+re-measure puts the reader back on the heading they were sent to, and what ends
+that is the reader moving the page for themselves. The mark in the rail is held
+on the same terms and for the same reason, which is why a landing also pins it -
+the working line is halfway down the window and a heading landed on sits near
+the top, so the line would otherwise read the section after the one asked for.
+
+## Copying a link
+
+Every heading is a place that can be sent to somebody, so the title itself is
+the way to take that link. Hovering one shows `Copy link` above it; clicking one
+puts the address in the clipboard and the tooltip says `Link copied` for a second
+and a half, then goes back to offering. Nothing else is drawn for it, and nothing
+at all until the pointer is on a heading, so the guide reads as it always did.
+
+The control is a link to the heading's own id rather than a button that copies.
+With the script running it never navigates - the click is caught and the address
+goes to the clipboard instead - but the markup still says what a heading is
+either way: without script it is simply an anchor, holding a modifier still
+opens it in a tab of its own, and a right click still offers to copy it. The
+clipboard proper is used where it is allowed; off a `file://` address, where it
+is not, the text goes through a field nobody can see and the document is asked
+to copy the selection. Only a copy that actually happened says so.
+
+The title is wrapped once more inside the link, in a `.head-text` span. A
+chapter's letters are painted by clipping a gradient to them, and a tooltip
+inside a box being clipped that way is a tooltip asking to be cut in half, so
+the clip goes on the letters and the tooltip sits outside it. The tooltip goes
+above the heading rather than beside it: the air over a heading is the guide's
+own and always empty, where the room to its right belongs to the pictures.
 
 ## Cuts
 
@@ -340,11 +396,26 @@ An Unsplash name after the prefix (`...-<11 char id>-unsplash.jpg`) still gives
 the photographer and the photo URL for the credit, which sits under the picture,
 on its right edge. Photos of your own carry no name, so no credit line shows.
 
+**A picture can say its own line instead.** Fill in `caption` on its entry in
+`images.json` and that is the line under the picture, in place of the `Photo by`
+one. It is for the pictures where what is worth naming is not the photographer.
+
+A caption is a plain line with links written into it the way the draft writes
+anything, so one line can send you to two places:
+
+```
+[Cornice](https://naoiwamatsu.com/Cornice) by [Nao Iwamatsu](https://www.instagram.com/naoiwamatsu/)
+```
+
+which is the stool in `You before guests`: the piece is on the designer's site
+and the designer is on Instagram, and the line names both. An Unsplash credit
+and a caption never both show; the caption wins.
+
 `build.js` writes all of this into `images.json` and reports what it placed and
-what went unused. The file is generated - the one field you edit by hand is
-`alt`, which survives a rebuild. `width` and `height` are read from the JPEG/PNG
-header; `note` is the draft's own description of the slot, refreshed on every
-build.
+what went unused. The file is generated - the fields you edit by hand are `alt`
+and `caption`, and they survive a rebuild. `width` and `height` are read from
+the JPEG/PNG header; `note` is the draft's own description of the slot,
+refreshed on every build.
 
 Entries are named after their section (`three-kinds-of-light-2`) rather than
 numbered through the document, so alt text you have written stays attached to
@@ -376,17 +447,69 @@ follows from the file's own proportions, and a tall photo is simply tall - the
 tallest in the set runs past the bottom of a 900px window, and sticks at the top
 rather than centring while you read past it.
 
-Loading is the browser's job now. Every picture is `loading="lazy"`, so a file
-is fetched as it comes near the window and nothing else is fetched at all. That
-is what the crossfade pane needed a hand-written beat and a neighbour-warmer to
-achieve. Width and height are in the markup, so the space is held before the
-file arrives and nothing shifts when it lands. It is held at zero opacity until
-it has decoded and fades in over 200ms, so a cold 5MB photo arrives as a fade
-rather than as a box filling in top to bottom. The class that does that is added
-by the script, so a page without script still shows every picture.
+### The ladder
 
-Compressing the set before launch is still worth doing. They are 2MB to 10MB
-each, straight off Unsplash.
+`images/` is the source folder and the page never touches it. The files there
+are straight off Unsplash, 2MB to 18MB each and several thousand pixels wide,
+where a picture on the page is at most 620. What the guide actually serves is
+`sized/`, which `encode.js` writes: every photograph at 480, 768, 960, 1280 and
+1920 pixels wide, in AVIF, WebP and its own format, and the hero on a ladder of
+its own that reaches 2560 because it is the page's width rather than a lane's.
+Nothing is ever enlarged, so a small source simply stops early.
+
+Three formats and one download. AVIF is about half the size of anything else and
+every browser less than four years old reads it, WebP catches most of what is
+left, the original's format catches the rest, and `<picture>` is what picks -
+so a browser takes one file and never learns the other two exist.
+
+**The `sizes` attribute is the stylesheet's own caps, written out.** It has to
+be: the browser chooses a rung before it has laid a single line out, so it
+cannot measure the box and has to be told. 620px from 1576px of window up, half
+the window less the air on either side below that, a flat 455px once the lanes
+stack, and the window less its margins on a phone too narrow to hold the
+measure. Change a cap in the stylesheet and the two constants at the top of
+`build.js` have to change with it, the same bargain the 1099px breakpoint makes
+with the script.
+
+161MB of sources come out as 2.5MB of guide on a retina laptop, and 1MB on a
+phone. The biggest single picture went from 18MB to 199KB.
+
+`sized/` is generated and swept: rename a section's picture and the widths of
+the old one are deleted on the next build. It is the folder to deploy. `images/`
+is where the work is kept, and only the build reads it.
+
+### Waiting for a photograph
+
+Every picture is `loading="lazy"` in the markup, so nothing is fetched until it
+is wanted and a page with no script still behaves. Width and height are in the
+markup too, so the space is held at the right shape before the file arrives and
+nothing shifts when it lands.
+
+What the script adds is distance. Left alone a browser starts a lazy file about
+a screen before it is needed, which is plenty for reading and nowhere near
+enough for a flick through the guide: you outrun it and land on a chapter whose
+pictures have not been asked for yet. So anything within two screens behind or
+three ahead is promoted to `eager` and starts on its own. It is the browser's
+own loading attribute either way - nothing here holds a `src` back or hands one
+over - so the page never depends on this having run. A connection that has said
+it is slow, or a phone that has asked for less data, gets one screen either
+side: it is speculative traffic, and the point of asking for less is not to
+spend it on guesses.
+
+And every picture carries its own preview. The whole photograph at 28px across,
+about four hundred bytes of it, written into the page as a data URL rather than
+fetched, because a preview that has to be fetched is not a preview. The browser
+blows it up to the picture's own width and that is where the blur comes from:
+there is no filter anywhere and nothing to compute. So the box is the right
+colours and the right shape from the first paint, the photograph fades over it
+when it arrives, and a flick down the guide is a run of soft pictures sharpening
+rather than a run of empty rectangles.
+
+Without a preview - no ladder built, so nothing to inline - the whole figure
+waits at zero instead, credit and all, which is what it did before: a credit
+floating over a space its photograph has not arrived in is worse than a beat of
+nothing. Neither happens unless the script is there to take the class off
+again.
 
 ## Narrow screens
 

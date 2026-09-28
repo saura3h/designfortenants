@@ -13,12 +13,14 @@
 //             can be filled in without touching the draft.
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 
 const ROOT = __dirname;
 const DRAFT = path.join(ROOT, '..', 'draftv4.md');
 const OUT = path.join(ROOT, 'index.html');
 const MANIFEST = path.join(ROOT, 'images.json');
 const IMG_DIR = path.join(ROOT, 'images');
+const SIZED = path.join(ROOT, 'sized.json');
 
 const esc = (s) => s
   .replace(/&/g, '&amp;')
@@ -191,6 +193,80 @@ function readImages() {
     });
 }
 const photos = readImages();
+
+// ---- the ladder ---------------------------------------------------------
+// A picture is never wider than 620 CSS pixels and the files in images/ are
+// several thousand across, so what the page serves is a set of sized-down
+// copies in sized/, and what the markup carries is a srcset that lets the
+// browser take the one rung it needs. encode.js writes them; it runs from here
+// so `node build.js` stays the one command, and it is skipped with
+// `--no-images` when only the prose has moved.
+//
+// It is a child process rather than a require because sizing is asynchronous
+// and everything else here is a straight read of the draft, top to bottom.
+// Without sharp installed it says so and exits, and the page is built the way
+// it always was: one <img>, pointing at the original.
+function sizePictures() {
+  if (process.argv.includes('--no-images')) return;
+  console.log('Sizing pictures...');
+  const r = spawnSync(process.execPath, [path.join(ROOT, 'encode.js')], { stdio: 'inherit' });
+  if (r.status !== 0) console.warn('  ! carrying on with the originals');
+}
+sizePictures();
+
+let sized = {};
+if (fs.existsSync(SIZED)) {
+  try { sized = JSON.parse(fs.readFileSync(SIZED, 'utf8')).files || {}; } catch (err) {
+    console.warn(`  ! ${path.basename(SIZED)} is not valid JSON, ignoring it`);
+  }
+}
+
+// What the browser has to know before it has laid a single line out: how wide
+// the picture is going to be. Both of these are read straight off the
+// stylesheet's own caps, so they move when it does.
+//
+//   a picture: 620px from 1576px of window up; below that half the window less
+//   the air on either side; a flat 455px once the lanes stack, which is the
+//   measure itself; and the window less its own margins on a phone too narrow
+//   to hold the measure.
+const SHOT_SIZES = '(min-width: 1576px) 620px, (min-width: 1100px) calc(50vw - 168px), ' +
+  '(min-width: 511px) 455px, calc(100vw - 56px)';
+//   the hero: the page's own box less the wordmark's front on both sides, and
+//   the same as any other picture once the lanes stack.
+const HERO_SIZES = '(min-width: 1500px) 1270px, (min-width: 1100px) calc(100vw - 230px), ' +
+  '(min-width: 511px) 455px, calc(100vw - 56px)';
+
+// One picture, as a <picture>: the formats in order of how small they are, and
+// an <img> under them holding the alt text, the box and everything a browser
+// with no idea what any of it means still needs.
+//
+// `attrs` is what differs between the hero and the rest - the hero is fetched
+// at once and everything else waits until it is near - and `pad` is only
+// indentation, so the generated file reads like something someone wrote.
+//
+// The class goes on the outer element either way, so the stylesheet and the
+// script find the same thing whether or not there is a ladder to pick from.
+function pictureHtml(photo, sizes, cls, attrs, pad) {
+  const s = sized[photo.file];
+  const dims = `width="${photo.width}" height="${photo.height}"`;
+  const c = cls ? ` class="${cls}"` : '';
+  if (!s) {
+    return `${pad}<img${c} src="${photo.src}" ${dims} ${attrs} />`;
+  }
+  return [
+    `${pad}<picture${c}>`,
+    ...s.sources.map((f) =>
+      `${pad}  <source type="${f.type}" srcset="${f.srcset}" sizes="${sizes}" />`),
+    `${pad}  <img src="${s.src}" srcset="${s.srcset}" sizes="${sizes}" ${dims} ${attrs} />`,
+    `${pad}</picture>`,
+  ].join('\n');
+}
+
+// The preview that sits behind a picture until the picture arrives: the whole
+// photograph at 28px across, about four hundred bytes of it, inlined here
+// rather than fetched because a preview that has to be fetched is not a
+// preview. The stylesheet blows it up and the blur is the blowing up.
+const previewOf = (photo) => (sized[photo.file] ? sized[photo.file].lqip : null);
 
 // Every heading is somewhere a picture can be named after, whether or not the
 // draft wrote an <aside> under it. The folder is what decides which pictures
@@ -369,7 +445,8 @@ if (fs.existsSync(MANIFEST)) {
 }
 // Every entry is a picture the folder actually holds, so taking a file out of
 // images/ takes its entry out of here and its place out of the page on the next
-// build. `alt` is the one field written by hand, and it is kept.
+// build. `alt`, `caption` and `captionUrl` are the fields written by hand, and
+// they are kept.
 const manifest = slots.map((s) => {
   const p = s.item === undefined ? (s.block.photo || s.block.anchor) : s.block.anchors[s.item];
   const was = existing[s.id];
@@ -384,6 +461,11 @@ const manifest = slots.map((s) => {
     alt: (was && was.alt) || '',
     credit: p.credit,
     creditUrl: p.creditUrl,
+    // A line of its own, for a picture Unsplash has nothing to say about. Set
+    // it and it is the line under the picture, set as written, in place of the
+    // `Photo by` one - because what wants naming is not always the
+    // photographer. Written by hand, and it survives a rebuild.
+    caption: (was && was.caption) || '',
   };
   p.id = s.id;                                         // the render reads it back off the file
   return m;
@@ -493,11 +575,15 @@ const heroCredit = heroFile ? credit(heroFile.stem.replace(/^hero-?/, '')) : nul
 // paints it back in wherever the pixel cloud covers. So the guide opens on the
 // empty room, the cloud sweeps off to the right and leaves it furnished, and a
 // cursor drawn across it brings the empty room back under the pointer.
+const heroPreview = heroFile && previewOf(heroFile);
 const hero = !heroFile ? '' : [
-  `      <figure class="hero${heroEmpty ? ' hero--reveal' : ''}">`,
-  `        <img class="hero-full" src="${heroFile.src}" alt="" width="${heroFile.width}" height="${heroFile.height}" fetchpriority="high" decoding="async" />`,
+  `      <figure class="hero${heroEmpty ? ' hero--reveal' : ''}${heroPreview ? ' has-preview' : ''}"` +
+    `${heroPreview ? ` style="--preview:url('${heroPreview}')"` : ''}>`,
+  pictureHtml(heroFile, HERO_SIZES, 'hero-full',
+    'alt="" fetchpriority="high" decoding="async"', '        '),
   heroEmpty
-    ? `        <img class="hero-empty" src="${heroEmpty.src}" alt="" width="${heroEmpty.width}" height="${heroEmpty.height}" fetchpriority="high" decoding="async" aria-hidden="true" />`
+    ? pictureHtml(heroEmpty, HERO_SIZES, 'hero-empty',
+        'alt="" fetchpriority="high" decoding="async" aria-hidden="true"', '        ')
     : '',
   heroEmpty ? `        <canvas class="hero-canvas" aria-hidden="true"></canvas>` : '',
   heroCredit.credit
@@ -505,6 +591,28 @@ const hero = !heroFile ? '' : [
     : '',
   `      </figure>`,
 ].filter(Boolean).join('\n');
+
+// Every heading is a place in the guide that can be sent to somebody, so every
+// heading is also the way to take that link: the title itself is the control,
+// and the only thing drawn for it is a tooltip, and only while the pointer is
+// on it.
+//
+// A link to itself, rather than a button that copies. With the script running
+// it never navigates - the click is caught and the address goes to the
+// clipboard instead - but the markup still says what the heading is either way,
+// which is the same bargain the rest of the page makes: without script it is
+// simply an anchor, and holding a modifier still opens it in a tab of its own.
+//
+// The title is wrapped once more inside the link because a chapter's letters
+// are painted by clipping a gradient to them, and a tooltip inside a box being
+// clipped that way is a tooltip asking to be cut in half.
+function headingHtml(tag, kind, id, title) {
+  return `<${tag} class="heading heading--${kind}" id="${id}">` +
+    `<a class="head-link" href="#${id}">` +
+    `<span class="head-text">${esc(title)}</span>` +
+    `<span class="tip" aria-hidden="true">Copy link</span>` +
+    `</a></${tag}>`;
+}
 
 const navItems = [];
 chapters.forEach((ch, i) => {
@@ -514,11 +622,11 @@ chapters.forEach((ch, i) => {
   // already, and a second announcement under the picture only repeated them.
   // It keeps its entry in the contents, which goes to the very top.
   openRow('chapter', i === 0 ? ''
-    : `<h2 class="heading heading--chapter" id="${ch.id}">${esc(ch.title)}</h2>`);
+    : headingHtml('h2', 'chapter', ch.id, ch.title));
   addBlocks(ch.intro);
   for (const s of ch.sections) {
     navItems.push({ level: 'section', id: s.id, label: s.title });
-    openRow('section', `<h3 class="heading heading--section" id="${s.id}">${esc(s.title)}</h3>`);
+    openRow('section', headingHtml('h3', 'section', s.id, s.title));
     addBlocks(s.blocks);
   }
 });
@@ -529,15 +637,40 @@ openRow('end', '<p class="colophon">Written and designed by <a href="https://sau
 // here any more. The width and height attributes still go on the img: they hold
 // the space at the right shape before the file lands, and they are what the
 // height now follows from.
-function renderMedia(m) {
+// A line under a picture, on its right edge. Usually the photographer, read off
+// an Unsplash filename and set as `Photo by <name>`. A picture carrying a
+// hand-written caption says its own line instead: what is worth naming in a
+// photograph of a piece of furniture is the piece, not whoever pointed a camera
+// at it.
+//
+// A caption is a plain line with links written into it the way the draft writes
+// anything, `[Cornice](https://naoiwamatsu.com/Cornice)`, because one line often
+// names two things and they rarely live in the same place: the piece is on the
+// designer's site and the designer is somewhere else entirely.
+const captionHtml = (s) => esc(s).replace(
+  /\[([^\]]+)\]\(([^)\s]+)\)/g,
+  '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+function creditLine(m) {
+  if (m.caption) return captionHtml(m.caption);
+  if (!m.credit) return '';
   const name = m.creditUrl
     ? `<a href="${m.creditUrl}" target="_blank" rel="noopener">${esc(m.credit)}</a>`
     : `<span class="credit-name">${esc(m.credit)}</span>`;
+  return `Photo by ${name}`;
+}
+
+function renderMedia(m) {
+  const line = creditLine(m);
+  const photo = { file: path.basename(m.src), src: m.src, width: m.width, height: m.height };
+  const preview = previewOf(photo);
   return [
     `          <div class="media" data-slot="${m.id}">`,
-    `            <figure class="shot">`,
-    `              <img src="${m.src}" alt="${esc(m.alt)}" width="${m.width}" height="${m.height}" loading="lazy" decoding="async" />`,
-    m.credit ? `              <figcaption class="credit">Photo by ${name}</figcaption>` : '',
+    `            <figure class="shot${preview ? ' has-preview' : ''}"` +
+      `${preview ? ` style="--preview:url('${preview}')"` : ''}>`,
+    pictureHtml(photo, SHOT_SIZES, '',
+      `alt="${esc(m.alt)}" loading="lazy" decoding="async"`, '              '),
+    line ? `              <figcaption class="credit">${line}</figcaption>` : '',
     `            </figure>`,
     `          </div>`,
   ].filter(Boolean).join('\n');

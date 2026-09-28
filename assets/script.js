@@ -96,10 +96,12 @@
     alignLead();
   }
 
-  // Held at zero opacity until the file is actually in, so a cold 5MB photo
-  // arrives as a fade rather than as a box filling in top to bottom. The whole
-  // figure waits, credit included. The class is added here, not in the markup,
-  // so a page without script still shows every picture.
+  // Held at zero opacity until the file is actually in, so a picture arrives as
+  // a fade over its own preview rather than as a box filling in top to bottom.
+  // The class is added here, not in the markup, so a page without script still
+  // shows every picture. What it does is the stylesheet's business: with a
+  // preview behind it only the photograph waits, without one the whole figure
+  // does, credit included.
   shots.forEach(function (fig) {
     var img = fig.querySelector('img');
     if (!img || img.complete) return;
@@ -109,11 +111,46 @@
     img.addEventListener('error', done);
   });
 
+  // ---------- fetching them early ----------
+  // Every picture is `loading="lazy"` in the markup, so a page with no script
+  // fetches only what it needs and nothing at all up front. What the script
+  // adds is distance. Left alone, a browser starts a lazy file about a screen
+  // before it is wanted, which is plenty for reading and nowhere near enough
+  // for a flick through the guide: you outrun it, and land on a chapter whose
+  // pictures have not been asked for yet.
+  //
+  // So a picture within a few screens of the window is promoted to eager and
+  // starts on its own, well before it is anywhere near being looked at. It is
+  // the browser's own loading attribute either way - nothing here holds a src
+  // back or hands one over, so the page never depends on this having run.
+  //
+  // Two screens behind and three ahead: reading only ever goes one way, but the
+  // way back up is somebody looking for something they have just read, and a
+  // picture they have already passed should still be there. A connection that
+  // has said it is slow, or a phone that has asked for less data, gets one
+  // screen either side instead - it is speculative traffic, and the whole point
+  // of asking for less is not to spend it on guesses.
+  if (window.IntersectionObserver) {
+    var link = navigator.connection || {};
+    var thrifty = link.saveData || /2g/.test(link.effectiveType || '');
+    var warmer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        warmer.unobserve(e.target);
+        var img = e.target.querySelector('img');
+        if (img && !img.complete) img.loading = 'eager';
+      });
+    }, {
+      root: scroller,
+      rootMargin: thrifty ? '100% 0px' : '200% 0px 300% 0px',
+    });
+    shots.forEach(function (fig) { warmer.observe(fig); });
+  }
+
   // ---------- the hero's reveal ----------
-  // A pixel cloud over the hero. It paints the empty room back over the
-  // furnished one wherever it covers, so one number - coverage - does both
-  // halves of the effect: the opening sweep is the cloud leaving to the right,
-  // and the cursor's trail is the cloud being put back under the pointer.
+  // A pixel cloud over the hero. It paints the empty room over the furnished
+  // one wherever it covers, so one number - coverage - is the whole effect:
+  // the opening sweep is the cloud leaving to the right.
   //
   // The cloud itself is value noise with a domain warp, the same billowing fbm
   // as the sketch this came from, sampled once per cell of a coarse grid. The
@@ -201,14 +238,22 @@
     img.addEventListener('error', enter);
   }
 
+  // A hero picture is a <picture> once there is a ladder of formats to pick
+  // from, and a bare <img> when there is not. Either way what the canvas needs
+  // is the photograph inside it.
+  function photoIn(fig, cls) {
+    var el = fig.querySelector('.' + cls);
+    return !el ? null : el.tagName === 'IMG' ? el : el.querySelector('img');
+  }
+
   function heroReveal(fig) {
-    var full = fig.querySelector('.hero-full');
-    var empty = fig.querySelector('.hero-empty');
+    var full = photoIn(fig, 'hero-full');
+    var empty = photoIn(fig, 'hero-empty');
     var canvas = fig.querySelector('.hero-canvas');
     if (!full || !empty || !canvas) return;
     var ctx = canvas.getContext('2d');
 
-    // The dials. Grid first, then the cloud, then the cursor.
+    // The dials. Grid first, then the cloud.
     //
     // There is no gap between the cells. The sketch this came from is a texture
     // over a background, so its pixels could sit apart and let the page through;
@@ -223,9 +268,6 @@
     var BLUR = 3;                    // how far the mask's edge is smeared, in CSS px
     var DRIFT = 0.55;                // how fast the cloud boils while it travels
     var FRONT = 2.4;                 // how hard the sweep's edge is
-    var CURSOR_R = 384;              // the hole the pointer opens
-    var TRAIL = 20;                  // frames of cursor history kept
-    var LINGER_MS = 900;             // how long the hole outlives the pointer
 
     // ---- the same value noise, domain warped so the cloud billows ----
     function hash(x, y) {
@@ -287,41 +329,10 @@
       return true;
     }
 
-    // ---- the pointer, and the tail it drags ----
-    // Followed on the window, not on the picture. A hole this wide is still
-    // half over the photograph when the pointer is well past its edge, and a
-    // trail that ended at the frame took the whole effect off the moment the
-    // cursor crossed a line the reader cannot see - it read as the picture
-    // rejecting the pointer rather than as the pointer leaving. So it counts
-    // wherever it is within a hole's reach, and whatever falls outside the
-    // photograph is simply drawn off it.
-    //
-    // And when it does go, it goes gradually: `alive` runs the hole down over
-    // LINGER_MS from wherever it was left, rather than the trail being pulled
-    // out from under it a frame at a time.
-    var mx = -1e4, my = -1e4, tx = -1e4, ty = -1e4, over = false, alive = 0;
-    var tail = [];
-    window.addEventListener('pointermove', function (e) {
-      // Every move on the page reaches this now, and asking the picture where
-      // it is costs a layout. Not worth paying for one that is not on screen.
-      if (!seen) return;
-      var r = full.getBoundingClientRect();
-      var x = e.clientX - r.left, y = e.clientY - r.top;
-      if (x < -CURSOR_R || x > r.width + CURSOR_R ||
-          y < -CURSOR_R || y > r.height + CURSOR_R) { over = false; return; }
-      tx = x; ty = y;
-      if (!over) { mx = tx; my = ty; }        // arrive where the pointer is
-      over = true;
-      wake();
-    }, { passive: true });
-    // Out of the window altogether, which no amount of moving will report.
-    document.addEventListener('pointerleave', function () { over = false; });
-
     // ---- the loop ----
-    // It runs while there is something to draw: the sweep, a pointer on the
-    // picture, or a tail still fading. Otherwise it stops - a canvas repainting
-    // eleven thousand cells behind a page nobody is looking at is a battery
-    // bill for nothing.
+    // It runs while the sweep is still crossing. Otherwise it stops - a canvas
+    // repainting eleven thousand cells behind a page nobody is looking at is a
+    // battery bill for nothing.
     var started = 0, t = 0, last = 0, running = false, seen = true;
     // `cells` is the guard as well as the buffer: the observer below fires the
     // moment it starts watching, which is before the pictures have decoded and
@@ -346,18 +357,7 @@
             : -0.35 + 1.7 * smoothstep(0, 1, age / SWEEP_MS);
       var sweeping = age < SWEEP_MS;
 
-      mx += (tx - mx) * 0.32; my += (ty - my) * 0.32;
-      if (over) tail.push(mx, my);
-      while (tail.length > TRAIL * 2) tail.splice(0, 2);
-      // The trail is left where the pointer left it and dimmed, so what fades
-      // is the hole rather than its shape - a tail spliced away instead
-      // shortened from the far end, which looked like it was being swallowed.
-      alive = over ? 1 : alive - dt * 1000 / LINGER_MS;
-      if (alive <= 0) { alive = 0; tail.length = 0; }
-      var tn = tail.length >> 1;
-
       var e0 = 0.5 - SOFT, e1 = 0.5 + SOFT;
-      var half = CELL / 2;
       var data = cells.data;
 
       for (var j = 0; j < rows; j++) {
@@ -370,22 +370,6 @@
 
           // The sweep: as the front passes a column, its cells fall away.
           var v = n - (p - px / w) * FRONT;
-
-          // The cursor puts the cloud back, strongest at the head of the tail.
-          if (tn > 0) {
-            var cx = px + half, cy = py + half, back = 0;
-            for (var k = 0; k < tn; k++) {
-              var old = tn > 1 ? (tn - 1 - k) / (tn - 1) : 0;
-              var rad = CURSOR_R * (1 - 0.45 * old);
-              var dx = cx - tail[k * 2], dy = cy - tail[k * 2 + 1];
-              var d2 = dx * dx + dy * dy;
-              if (d2 < rad * rad) {
-                var c = (1 - Math.sqrt(d2) / rad) * (1 - old * 0.85);
-                if (c > back) { back = c; if (back >= 1) break; }
-              }
-            }
-            if (back > 0) v = Math.max(v, back * 1.35 * alive);
-          }
 
           v += (hash(i + 1234, j + 5678) - 0.5) * GRAIN;   // fray every edge alike
           var a = smoothstep(e0, e1, v);
@@ -418,7 +402,7 @@
       ctx.drawImage(empty, 0, 0, canvas.width, canvas.height);
       ctx.globalCompositeOperation = 'source-over';
 
-      if (sweeping || over || alive > 0) requestAnimationFrame(frame);
+      if (sweeping) requestAnimationFrame(frame);
       else { running = false; ctx.clearRect(0, 0, w, h); }
     }
 
@@ -602,6 +586,7 @@
     navLinks[h].classList.add('is-active');
     if (ticks[h]) ticks[h].classList.add('is-active');
     activeIndex = h;
+    markAddress(h);
     // The window in the corner is already where it should be - it was moved on
     // the way here, not on arrival.
     if (!phone.matches) centreRail();
@@ -644,6 +629,18 @@
   var TOP = parseFloat(getComputedStyle(document.documentElement)
     .getPropertyValue('--top')) || 48;
 
+  // The heading the address asked for when the page was opened, if it asked for
+  // one this guide has. The opening at the foot of this file lands on it, and
+  // every re-measure puts it back on it while the page is still settling.
+  var landing = fromAddress();
+  function fromAddress() {
+    var id = '';
+    try { id = decodeURIComponent((location.hash || '').slice(1)); }
+    catch (err) { return ''; }                  // a hash that is not an escape
+    return indexOf(id) >= 0 ? id : '';
+  }
+  function reland() { if (landing) goTo(landing, false); }
+
   scroller.addEventListener('scroll', update, { passive: true });
   // Crossing a breakpoint changes what place() should be doing at all, and a
   // resize event alone does not say which side of one we have landed on.
@@ -651,7 +648,7 @@
   // screen - it is moved when the section changes, and coming back from the
   // phone layout is not a section changing.
   var relayout = function () {
-    measure(); place(); update();
+    measure(); place(); update(); reland();
     if (!phone.matches) centreRail();
   };
   window.addEventListener('resize', relayout);
@@ -666,7 +663,7 @@
   // reading one heading behind. An observer catches the reflow whenever it
   // actually happens.
   if (window.ResizeObserver) {
-    var watch = new ResizeObserver(function () { measure(); place(); update(); });
+    var watch = new ResizeObserver(function () { measure(); place(); update(); reland(); });
     watch.observe(prose);
     // The first picture too. What the header's second column is lined up with
     // is that picture's left edge, and its width answers to the window's height
@@ -678,7 +675,7 @@
     // when the display face swaps in, and when the title turns onto two lines.
     if (brand) watch.observe(brand);
   } else if (document.fonts && document.fonts.ready) {
-    document.fonts.ready.then(function () { measure(); place(); update(); });
+    document.fonts.ready.then(function () { measure(); place(); update(); reland(); });
   }
 
   // ---------- nav ----------
@@ -823,8 +820,10 @@
   // Any real input wins over an animation in progress - and over a pick made
   // before it. The moment the reader is the one moving the page, where they are
   // is the only thing that says which section they are in.
-  function takeOver() { stopGlide(); pinned = -1; }
-  ['wheel', 'touchstart', 'keydown'].forEach(function (ev) {
+  function takeOver() { stopGlide(); pinned = -1; landing = ''; }
+  // pointerdown for the scrollbar, which is a way of moving the page that none
+  // of the other three ever hear about.
+  ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(function (ev) {
     scroller.addEventListener(ev, takeOver, { passive: true });
   });
 
@@ -849,30 +848,159 @@
     e.preventDefault();
     setOpen(false);            // picking something is the end of browsing
     pinned = navLinks.indexOf(link);
+    landing = '';
     goTo(link.dataset.target, true);
-    history.replaceState(null, '', '#' + link.dataset.target);
+    setHash(link.dataset.target);
   });
 
   // The wordmark used to be the way back to the top. It is at the top now, and
   // gone by the time you would want it, so there is nothing left for it to do.
 
-  // Loading the page is loading the guide, from the top. Not from the anchor
-  // left in the address bar, and not from wherever the browser remembers you
-  // were - both of those get dropped, so every refresh is a hard one.
-  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-  clearHash();
-  scroller.scrollTop = 0;
-
-  measure();
-  place();
-  update();
+  // ---------- the address ----------
+  // Where you are is written into the address as you read it, so whatever is on
+  // screen is always something you can send to somebody. replaceState, not a
+  // jump: nothing moves for it, no history is made by it, and the back button
+  // still leaves the guide the way it came in.
+  //
+  // It waits a moment first. update() runs on every scroll and a flick down the
+  // page crosses a dozen sections on the way - a browser counts those against a
+  // limit of its own and starts refusing them, and an address bar strobing
+  // through the contents is not something anyone asked to watch. So it is
+  // written once the reading has settled on one section.
+  var addressTimer = null;
+  function markAddress(i) {
+    if (addressTimer) clearTimeout(addressTimer);
+    addressTimer = setTimeout(function () {
+      // The first chapter is the top of the page rather than a heading in it,
+      // so it is the address the guide was opened on, with nothing on the end.
+      setHash(i > 0 && navLinks[i] ? navLinks[i].dataset.target : '');
+    }, 250);
+  }
 
   // Opened as a plain file rather than served, rewriting the address is not
   // allowed at all, hence the guard.
-  function clearHash() {
-    if (!location.hash) return;
+  function setHash(id) {
+    var url = location.href.split('#')[0] + (id ? '#' + id : '');
+    if (url === location.href) return;
     try {
-      history.replaceState(null, '', location.href.split('#')[0]);
+      history.replaceState(null, '', url);
     } catch (err) { /* file:// - leave the address as it is */ }
+  }
+
+  // ---------- copying a link ----------
+  // Clicking a heading takes its link. The tooltip beside it is the only thing
+  // ever drawn for this, and only while the pointer is on the heading, so the
+  // guide reads as it always did until somebody goes looking.
+  var COPY = 'Copy link', COPIED = 'Link copied';
+  var held = null, heldTimer = null;      // the heading holding "Link copied"
+  // The same news, for a reader who is being read to rather than shown.
+  var say = document.createElement('p');
+  say.className = 'sr-only';
+  say.setAttribute('role', 'status');
+  document.body.appendChild(say);
+
+  prose.addEventListener('click', function (e) {
+    var link = e.target.closest('.head-link');
+    if (!link) return;
+    // A modifier means the reader is asking the browser for something - a tab
+    // of their own, a window - and the heading is a real link, so it is left to
+    // do that. Everything else is the plain click, which copies rather than
+    // goes anywhere.
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button) return;
+    e.preventDefault();
+    // Whatever the address bar would read if you followed it: the page you are
+    // on, the query it came with, and this heading on the end.
+    toClipboard(link.href).then(function (ok) {
+      if (ok) mark(link);
+    });
+  });
+
+  function tipOf(link) { return link.querySelector('.tip'); }
+
+  function mark(link) {
+    if (held && held !== link) release(held);
+    if (heldTimer) clearTimeout(heldTimer);
+    held = link;
+    link.classList.add('is-copied');
+    tipOf(link).textContent = COPIED;
+    say.textContent = COPIED;
+    heldTimer = setTimeout(function () { release(link); }, 1600);
+  }
+
+  // Long enough to have been read, and then the heading is a heading again. The
+  // tooltip goes on showing if the pointer is still there - it is back to
+  // offering the link rather than reporting on one.
+  function release(link) {
+    link.classList.remove('is-copied');
+    tipOf(link).textContent = COPY;
+    if (held === link) { held = null; say.textContent = ''; }
+  }
+
+  // The clipboard proper where it is allowed, which is a served page in a
+  // current browser. Off a file:// address, and anywhere the permission is
+  // refused, the old way still works: put the text in a field nobody can see,
+  // select it, and ask the document to copy the selection.
+  function toClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text)
+        .then(function () { return true; }, function () { return byField(text); });
+    }
+    return Promise.resolve(byField(text));
+  }
+
+  function byField(text) {
+    var field = document.createElement('textarea');
+    field.value = text;
+    field.setAttribute('readonly', '');
+    field.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+    document.body.appendChild(field);
+    var ok = false;
+    try {
+      field.select();
+      ok = document.execCommand('copy');
+    } catch (err) { ok = false; }
+    document.body.removeChild(field);
+    return ok;
+  }
+
+  // ---------- opening ----------
+  // A link into the middle of the guide opens there. It is the one thing that
+  // may set where the page starts, so it is read before anything else moves it,
+  // and a name the guide does not have is no answer at all: the guide opens
+  // where it always did, at the top, with the address tidied up behind it. The
+  // browser's own memory of where you were is turned off either way - a refresh
+  // is the guide from the top or the link you refreshed on, never a third place
+  // nobody asked for.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+
+  measure();
+  place();
+
+  if (landing) {
+    // Held, and the mark held with it: the working line sits halfway down the
+    // window and a heading landed on sits near the top, so the line would read
+    // the section after the one that was asked for.
+    pinned = indexOf(landing);
+    goTo(landing, false);
+    // Landing is one thing the page cannot do once and be done with. The
+    // offsets it lands on are taken before the display face has swapped in and
+    // before a single picture has decoded, and both move every heading below
+    // them - by a screen on a fast connection and by a dozen on a slow one. So
+    // the landing is held: every time the guide is measured again it is put
+    // back on the heading it was sent to, and what ends that is the reader
+    // moving the page for themselves. Which is the same rule the mark in the
+    // rail keeps, and for the same reason.
+  } else {
+    setHash('');
+    scroller.scrollTop = 0;
+  }
+
+  update();
+
+  function indexOf(id) {
+    for (var i = 0; i < navLinks.length; i++) {
+      if (navLinks[i].dataset.target === id) return i;
+    }
+    return -1;
   }
 })();

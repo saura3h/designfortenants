@@ -9,31 +9,8 @@
     "height": 1108,
     "alt": "",
     "credit": "",
-    "creditUrl": ""
-  },
-  {
-    "id": "dont-furnish-it-all-in-one-weekend",
-    "chapter": "Start slow",
-    "section": "Don’t furnish it all in one weekend",
-    "note": "Floor plan - first pass <> second pass",
-    "src": "images/dont-furnish-it-all-in-one-weekend.jpg",
-    "width": 2368,
-    "height": 1980,
-    "alt": "",
-    "credit": "",
-    "creditUrl": ""
-  },
-  {
-    "id": "buy-for-the-next-house",
-    "chapter": "Start slow",
-    "section": "Buy for the next house",
-    "note": "",
-    "src": "images/buy-for-the-next-house-dina-badamshina-j7vbBmTHmjY-unsplash.jpg",
-    "width": 3091,
-    "height": 2048,
-    "alt": "",
-    "credit": "Dina Badamshina",
-    "creditUrl": "https://unsplash.com/photos/j7vbBmTHmjY"
+    "creditUrl": "",
+    "caption": ""
   },
   {
     "id": "rental-rules",
@@ -45,7 +22,8 @@
     "height": 3220,
     "alt": "",
     "credit": "Charlesdeluvio",
-    "creditUrl": "https://unsplash.com/photos/6fA1ldyxSbw"
+    "creditUrl": "https://unsplash.com/photos/6fA1ldyxSbw",
+    "caption": ""
   },
   {
     "id": "house-design",
@@ -57,7 +35,8 @@
     "height": 4604,
     "alt": "",
     "credit": "Richard Wang",
-    "creditUrl": "https://unsplash.com/photos/2EJB_8BuS-I"
+    "creditUrl": "https://unsplash.com/photos/2EJB_8BuS-I",
+    "caption": ""
   },
   {
     "id": "sunlight",
@@ -69,7 +48,8 @@
     "height": 1904,
     "alt": "",
     "credit": "",
-    "creditUrl": ""
+    "creditUrl": "",
+    "caption": ""
   },
   {
     "id": "power-supply",
@@ -81,7 +61,8 @@
     "height": 1482,
     "alt": "",
     "credit": "David Pisnoy",
-    "creditUrl": "https://unsplash.com/photos/947YEDiM6BM"
+    "creditUrl": "https://unsplash.com/photos/947YEDiM6BM",
+    "caption": ""
   },
   {
     "id": "the-life-you-live",
@@ -93,7 +74,8 @@
     "height": 4372,
     "alt": "",
     "credit": "Yen Vu",
-    "creditUrl": "https://unsplash.com/photos/UlHSF20AHu0"
+    "creditUrl": "https://unsplash.com/photos/UlHSF20AHu0",
+    "caption": ""
   },
   {
     "id": "walk-your-walkways",
@@ -105,7 +87,8 @@
     "height": 1485,
     "alt": "",
     "credit": "",
-    "creditUrl": ""
+    "creditUrl": "",
+    "caption": ""
   },
   {
     "id": "everything-needs-an-address",
@@ -117,7 +100,8 @@
     "height": 9504,
     "alt": "",
     "credit": "Kailun Zhang",
-    "creditUrl": "https://unsplash.com/photos/ujnPsEmkmDI"
+    "creditUrl": "https://unsplash.com/photos/ujnPsEmkmDI",
+    "caption": ""
   },
   {
     "id": "you-before-guests",
@@ -129,7 +113,8 @@
     "height": 1600,
     "alt": "",
     "credit": "",
-    "creditUrl": ""
+    "creditUrl": "",
+    "caption": "[Cornice](https://naoiwamatsu.com/Cornice) by [Nao Iwamatsu](https://www.instagram.com/naoiwamatsu/)"
   },
   {
     "id": "you-cant-install-a-style",
@@ -141,7 +126,8 @@
     "height": 3024,
     "alt": "",
     "credit": "Nine Koepfer",
-    "creditUrl": "https://unsplash.com/photos/OZiflZqq0N0"
+    "creditUrl": "https://unsplash.com/photos/OZiflZqq0N0",
+    "caption": ""
   },
   {
     "id": "three-words-are-enough",
@@ -153,7 +139,8 @@
     "height": 5012,
     "alt": "",
     "credit": "Tim Schmidbauer",
-    "creditUrl": "https://unsplash.com/photos/CD-X0KwUNYU"
+    "creditUrl": "https://unsplash.com/photos/CD-X0KwUNYU",
+    "caption": ""
   },
   {
     "id": "break-the-pattern",
@@ -165,7 +152,8 @@
     "height": 6000,
     "alt": "",
     "credit": "Shche_ Team",
-    "creditUrl": "https://unsplash.com/photos/cwMr5XYhNew"
+    "creditUrl": "https://unsplash.com/photos/cwMr5XYhNew",
+    "caption": ""
   },
   {
     "id": "get-some-curtains",
@@ -177,7 +165,8 @@
     "height": 9248,
     "alt": "",
     "credit": "Pushparaj S",
-    "creditUrl": "https://unsplash.com/photos/y6kUbpYKp5k"
+    "creditUrl": "https://unsplash.com/photos/y6kUbpYKp5k",
+    "caption": ""
   },
   {
     "id": "diffuse-and-decentralize",
@@ -189,7 +178,8 @@
     "height": 9504,
     "alt": "",
     "credit": "Kailun Zhang",
-    "creditUrl": "https://unsplash.com/photos/zWOoM0C7F2Y"
+    "creditUrl": "https://unsplash.com/photos/zWOoM0C7F2Y",
+    "caption": ""
   },
   {
     "id": "three-kinds-of-light-1",
@@ -201,7 +191,8 @@
     "height": 3437,
     "alt": "",
     "credit": "Mary Skrynnikova",
-    "creditUrl": "https://unsplash.com/photos/f9mpWX2a-QU"
+    "creditUrl": "https://unsplash.com/photos/f9mpWX2a-QU",
+    "caption": ""
   },
   {
     "id": "three-kinds-of-light-2",
@@ -213,7 +204,8 @@
     "height": 6720,
     "alt": "",
     "credit": "Jean Philippe Delberghe",
-    "creditUrl": "https://unsplash.com/photos/lrRaEBnR79Y"
+    "creditUrl": "https://unsplash.com/photos/lrRaEBnR79Y",
+    "caption": ""
   },
   {
     "id": "three-kinds-of-light-3",
@@ -225,7 +217,8 @@
     "height": 5472,
     "alt": "",
     "credit": "Jason Leung",
-    "creditUrl": "https://unsplash.com/photos/spkDorYrBcc"
+    "creditUrl": "https://unsplash.com/photos/spkDorYrBcc",
+    "caption": ""
   },
   {
     "id": "warm-and-low",
@@ -237,7 +230,8 @@
     "height": 5284,
     "alt": "",
     "credit": "Emilio Garcia",
-    "creditUrl": "https://unsplash.com/photos/1HcK5xQoUKQ"
+    "creditUrl": "https://unsplash.com/photos/1HcK5xQoUKQ",
+    "caption": ""
   },
   {
     "id": "which-lamps-to-get-1",
@@ -249,7 +243,8 @@
     "height": 2967,
     "alt": "",
     "credit": "Tan Tony",
-    "creditUrl": "https://unsplash.com/photos/stskl3Vmbx0"
+    "creditUrl": "https://unsplash.com/photos/stskl3Vmbx0",
+    "caption": ""
   },
   {
     "id": "which-lamps-to-get-2",
@@ -261,7 +256,8 @@
     "height": 5318,
     "alt": "",
     "credit": "Maximilian Bungart",
-    "creditUrl": "https://unsplash.com/photos/pBIKgYY8ItA"
+    "creditUrl": "https://unsplash.com/photos/pBIKgYY8ItA",
+    "caption": ""
   },
   {
     "id": "which-lamps-to-get-3",
@@ -273,7 +269,8 @@
     "height": 4888,
     "alt": "",
     "credit": "Fujiphilm",
-    "creditUrl": "https://unsplash.com/photos/MNchfnLcwio"
+    "creditUrl": "https://unsplash.com/photos/MNchfnLcwio",
+    "caption": ""
   },
   {
     "id": "which-lamps-to-get-4",
@@ -285,7 +282,8 @@
     "height": 2919,
     "alt": "",
     "credit": "Swabdesign",
-    "creditUrl": "https://unsplash.com/photos/SMFRH-Fs9is"
+    "creditUrl": "https://unsplash.com/photos/SMFRH-Fs9is",
+    "caption": ""
   },
   {
     "id": "plants",
@@ -297,7 +295,8 @@
     "height": 4014,
     "alt": "",
     "credit": "The Prototype",
-    "creditUrl": "https://unsplash.com/photos/99y2qSLexys"
+    "creditUrl": "https://unsplash.com/photos/99y2qSLexys",
+    "caption": ""
   },
   {
     "id": "rooms-within-rooms",
@@ -309,7 +308,8 @@
     "height": 4138,
     "alt": "",
     "credit": "Med Badr Chemmaoui",
-    "creditUrl": "https://unsplash.com/photos/xtDpXi_a-YQ"
+    "creditUrl": "https://unsplash.com/photos/xtDpXi_a-YQ",
+    "caption": ""
   },
   {
     "id": "empty-on-purpose",
@@ -321,7 +321,8 @@
     "height": 4000,
     "alt": "",
     "credit": "Alex Tyson",
-    "creditUrl": "https://unsplash.com/photos/sogSncEIJGk"
+    "creditUrl": "https://unsplash.com/photos/sogSncEIJGk",
+    "caption": ""
   },
   {
     "id": "first-thing-you-see",
@@ -333,7 +334,8 @@
     "height": 4385,
     "alt": "",
     "credit": "Wes Hicks",
-    "creditUrl": "https://unsplash.com/photos/jTFKo1p8ge0"
+    "creditUrl": "https://unsplash.com/photos/jTFKo1p8ge0",
+    "caption": ""
   },
   {
     "id": "colour-rule",
@@ -345,7 +347,8 @@
     "height": 2624,
     "alt": "",
     "credit": "Jon Stebbe",
-    "creditUrl": "https://unsplash.com/photos/paydk0JcIOQ"
+    "creditUrl": "https://unsplash.com/photos/paydk0JcIOQ",
+    "caption": ""
   },
   {
     "id": "balance",
@@ -357,7 +360,8 @@
     "height": 5504,
     "alt": "",
     "credit": "Annie Spratt",
-    "creditUrl": "https://unsplash.com/photos/DwRVGpqr2L4"
+    "creditUrl": "https://unsplash.com/photos/DwRVGpqr2L4",
+    "caption": ""
   },
   {
     "id": "groups-and-anchors",
@@ -369,7 +373,8 @@
     "height": 6006,
     "alt": "",
     "credit": "Shin Li",
-    "creditUrl": "https://unsplash.com/photos/bdFdbOae2b0"
+    "creditUrl": "https://unsplash.com/photos/bdFdbOae2b0",
+    "caption": ""
   },
   {
     "id": "rule-of-threes",
@@ -381,7 +386,8 @@
     "height": 5115,
     "alt": "",
     "credit": "Toa Heftiba",
-    "creditUrl": "https://unsplash.com/photos/AVN-0C6JLmM"
+    "creditUrl": "https://unsplash.com/photos/AVN-0C6JLmM",
+    "caption": ""
   },
   {
     "id": "make-it-feel-bigger-1",
@@ -393,7 +399,8 @@
     "height": 4678,
     "alt": "",
     "credit": "Rooted Studio",
-    "creditUrl": "https://unsplash.com/photos/85woNv4eXXw"
+    "creditUrl": "https://unsplash.com/photos/85woNv4eXXw",
+    "caption": ""
   },
   {
     "id": "make-it-feel-bigger-2",
@@ -405,7 +412,8 @@
     "height": 4329,
     "alt": "",
     "credit": "Greg Nerantzakis",
-    "creditUrl": "https://unsplash.com/photos/z6z2W6Qrpho"
+    "creditUrl": "https://unsplash.com/photos/z6z2W6Qrpho",
+    "caption": ""
   },
   {
     "id": "rotate-your-stuff",
@@ -417,7 +425,8 @@
     "height": 6480,
     "alt": "",
     "credit": "Annie Spratt",
-    "creditUrl": "https://unsplash.com/photos/HWPETLBkCLc"
+    "creditUrl": "https://unsplash.com/photos/HWPETLBkCLc",
+    "caption": ""
   },
   {
     "id": "walls-and-art",
@@ -429,7 +438,8 @@
     "height": 3871,
     "alt": "",
     "credit": "Mary Borozdina",
-    "creditUrl": "https://unsplash.com/photos/KRIU4uMvS5M"
+    "creditUrl": "https://unsplash.com/photos/KRIU4uMvS5M",
+    "caption": ""
   },
   {
     "id": "smell-and-sound",
@@ -441,7 +451,8 @@
     "height": 6240,
     "alt": "",
     "credit": "Mathilde Langevin",
-    "creditUrl": "https://unsplash.com/photos/abb2u5TcCLs"
+    "creditUrl": "https://unsplash.com/photos/abb2u5TcCLs",
+    "caption": ""
   },
   {
     "id": "entryway",
@@ -453,7 +464,8 @@
     "height": 7680,
     "alt": "",
     "credit": "Spacejoy",
-    "creditUrl": "https://unsplash.com/photos/g3KbcDWrBUM"
+    "creditUrl": "https://unsplash.com/photos/g3KbcDWrBUM",
+    "caption": ""
   },
   {
     "id": "living-room",
@@ -465,7 +477,8 @@
     "height": 3456,
     "alt": "",
     "credit": "Danilo Rios",
-    "creditUrl": "https://unsplash.com/photos/AgK_XAqSbfk"
+    "creditUrl": "https://unsplash.com/photos/AgK_XAqSbfk",
+    "caption": ""
   },
   {
     "id": "workspace",
@@ -477,7 +490,8 @@
     "height": 5417,
     "alt": "",
     "credit": "Martin Katler",
-    "creditUrl": "https://unsplash.com/photos/MoQ7XG0u5QU"
+    "creditUrl": "https://unsplash.com/photos/MoQ7XG0u5QU",
+    "caption": ""
   },
   {
     "id": "bedroom",
@@ -489,7 +503,8 @@
     "height": 6411,
     "alt": "",
     "credit": "Annie Spratt",
-    "creditUrl": "https://unsplash.com/photos/wd3UoLynzII"
+    "creditUrl": "https://unsplash.com/photos/wd3UoLynzII",
+    "caption": ""
   },
   {
     "id": "kitchen",
@@ -501,7 +516,8 @@
     "height": 6000,
     "alt": "",
     "credit": "Lisa Anna",
-    "creditUrl": "https://unsplash.com/photos/wYHJ3uNZ_nI"
+    "creditUrl": "https://unsplash.com/photos/wYHJ3uNZ_nI",
+    "caption": ""
   },
   {
     "id": "bathroom",
@@ -513,7 +529,8 @@
     "height": 5184,
     "alt": "",
     "credit": "Mathias Reding",
-    "creditUrl": "https://unsplash.com/photos/DjHtg6pEdlo"
+    "creditUrl": "https://unsplash.com/photos/DjHtg6pEdlo",
+    "caption": ""
   },
   {
     "id": "studio-apartments",
@@ -525,6 +542,7 @@
     "height": 2232,
     "alt": "",
     "credit": "Patrick Perkins",
-    "creditUrl": "https://unsplash.com/photos/3wylDrjxH-E"
+    "creditUrl": "https://unsplash.com/photos/3wylDrjxH-E",
+    "caption": ""
   }
 ]
