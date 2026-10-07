@@ -714,6 +714,7 @@ const html = `<!DOCTYPE html>
   <script>document.documentElement.classList.add('js')</script>
   <title>The Tenant's Guide to Interior Design</title>
   <meta name="description" content="${esc(lead || '')}" />
+  <link rel="canonical" href="https://www.saurabh.so/design-for-tenants/" />
   <link rel="stylesheet" href="assets/styles.css?v=${v}" />
 </head>
 <body>
