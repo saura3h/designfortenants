@@ -719,8 +719,8 @@ const html = `<!DOCTYPE html>
        screens, which do not take an SVG. -->
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
-  <!-- What a shared link unfurls into. The picture is assets/og.jpg, drawn from
-       og.html by \`node og.js\`; these addresses have to be absolute. -->
+  <!-- What a shared link unfurls into. The picture is assets/og.jpg, a
+       1200x630 image of the guide's opening; these addresses have to be absolute. -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="saurabh.so" />
   <meta property="og:title" content="The Tenant's Guide to Interior Design" />
