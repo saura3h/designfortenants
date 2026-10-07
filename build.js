@@ -720,15 +720,15 @@ const html = `<!DOCTYPE html>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
   <!-- What a shared link unfurls into. The picture is assets/og.jpg, a
-       1200x630 image of the guide's opening; these addresses have to be absolute. -->
+       2000x1050 image of the guide's opening; these addresses have to be absolute. -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="saurabh.so" />
   <meta property="og:title" content="The Tenant's Guide to Interior Design" />
   <meta property="og:description" content="${esc(lead || '')}" />
   <meta property="og:url" content="https://www.saurabh.so/design-for-tenants/" />
   <meta property="og:image" content="https://www.saurabh.so/design-for-tenants/assets/og.jpg" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  <meta property="og:image:width" content="2000" />
+  <meta property="og:image:height" content="1050" />
   <meta property="og:image:alt" content="The Tenant's Guide to Interior Design, beside a sunlit living room with a pink armchair and plants." />
   <meta name="twitter:card" content="summary_large_image" />
   <link rel="stylesheet" href="assets/styles.css?v=${v}" />
