@@ -109,7 +109,10 @@
 /* ---------- Reset ---------- */
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
-html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
+/* No bounce up and down, but only up and down: on the root, a sideways
+   overscroll-behavior is what the browser reads to decide whether a two-finger
+   swipe may go back a page, and 'none' turns that off. */
+html, body { margin: 0; height: 100%; overflow: hidden; overscroll-behavior-y: none; }
 body {
   background: var(--bg);
   color: var(--ink);
