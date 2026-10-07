@@ -715,6 +715,15 @@ const html = `<!DOCTYPE html>
   <title>The Tenant's Guide to Interior Design</title>
   <meta name="description" content="${esc(lead || '')}" />
   <link rel="canonical" href="https://www.saurabh.so/design-for-tenants/" />
+  <!-- Google Analytics: the same property as the rest of saurabh.so, with the
+       guide's pages grouped as 'design-for-tenants'. -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-YX4F6LF62K"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-YX4F6LF62K', { content_group: 'design-for-tenants' });
+  </script>
   <!-- A dot in the wordmark's gradient. The PNG is the same dot, for iOS home
        screens, which do not take an SVG. -->
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
