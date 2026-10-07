@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<!-- The link preview card, 1200x630. Not part of the guide: `node og.js` renders
+     it to assets/og.jpg with headless Chrome. It is the guide's own opening at
+     card size - the rail, the wordmark on one line, the hero, its credit - with
+     the fonts and colours read from assets/. -->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<style>
+  @font-face { font-family: 'Haskoy'; src: url('assets/fonts/haskoy-variable.woff2') format('woff2'); font-weight: 100 900; }
+  @font-face { font-family: 'InterVar'; src: url('assets/fonts/inter-variable.woff2') format('woff2'); font-weight: 100 900; }
+  html, body { margin: 0; width: 1200px; height: 630px; overflow: hidden; background: #fff; }
+  .rail { position: absolute; left: 40px; top: 38px; width: 15px; }
+  .rail i { display: flex; align-items: center; height: 6.5px; }
+  .rail i::before { content: ''; width: 8px; height: 1px; border-radius: 1px; background: #e1dbd4; }
+  .rail i.c::before { width: 15px; }
+  .rail i.on::before { background: #ac5301; height: 2px; }
+  .page { position: absolute; left: 94px; top: 30px; width: 1012px; }
+  h1 {
+    margin: 0;
+    font-family: 'Haskoy', sans-serif; font-weight: 600;
+    font-size: 38px; line-height: 1.1; letter-spacing: -0.5px;
+    background: linear-gradient(0deg, #ad5400 0%, #724202 100%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .photo {
+    margin-top: 14px; height: 502px;
+    background: url('images/hero-jon-stebbe-paydk0JcIOQ-unsplash.jpg') center / cover;
+  }
+  .credit {
+    margin: 8px 0 0; text-align: right;
+    font-family: 'InterVar', sans-serif; font-size: 13px; letter-spacing: -0.12px; color: #a69a8b;
+  }
+  .credit span { text-decoration: underline; text-underline-offset: 2px; }
+</style>
+</head>
+<body>
+  <!-- One tick per chapter (c) and section, in the guide's order. -->
+  <div class="rail">
+    <i class="c on"></i><i class="c"></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    <i class="c"></i><i></i><i></i><i></i><i></i>
+    <i class="c"></i><i></i><i></i><i></i><i></i>
+    <i class="c"></i><i></i><i></i><i></i><i></i><i></i>
+    <i class="c"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    <i class="c"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    <i class="c"></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+    <i class="c"></i>
+  </div>
+  <div class="page">
+    <h1>The Tenant's Guide to Interior Design</h1>
+    <div class="photo"></div>
+    <p class="credit">Photo by <span>Jon Stebbe</span></p>
+  </div>
+</body>
+</html>

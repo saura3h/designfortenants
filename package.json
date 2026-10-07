@@ -4,7 +4,8 @@
   "description": "The Tenant's Guide to Interior Design - build scripts",
   "scripts": {
     "page": "node build.js",
-    "sizes": "node encode.js"
+    "sizes": "node encode.js",
+    "og": "node og.js"
   },
   "devDependencies": {
     "sharp": "^0.35.4"
